@@ -45,12 +45,17 @@ Last edit date:
 #include <math.h>
 #include <iostream>
 #include <fstream>
+#include "tchar.h"
 #include "M:\\Routines\\C++\\RandomNumbers\\random.h" 
 //H for house pc, E for laptop, M for office
+#include "D:\\quinonesa\\Dropbox\C++\\json.hpp"       
+// Header for reading and using JSON files see https://github.com/nlohmann/json
+
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
 using namespace std;
+using json = nlohmann::json;
 
 // General parameters
 
@@ -142,7 +147,7 @@ protected:
 agent::agent()			// basic constructor
 {
 	numEst = 9;
-	for (size_t i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
+	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
 	alpha = 0.01, gamma = 0.5, tau = 10;								
 	// Default values
 	neta = 0;
@@ -156,7 +161,7 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI)
 // parameterized constructor
 {
 	numEst = 9;
-	for (size_t i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
+	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
 	//values[4] = 10, values[2] = 10;
 	alpha = alphaI, gamma = gammaI, tau = tauI;
 	neta = netaI;
@@ -174,7 +179,7 @@ void agent::rebirth()
 	choiceT = 0, choiceT1 = 0;
 	currentReward = 0;
 	cumulReward = 0;
-	for (size_t i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
+	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
 }
 
 agent::~agent() {}		// Destructor
@@ -356,7 +361,7 @@ void agent::printIndData(ofstream &learnSeries, int &seed, double &outbr)
 	//cout << cleanOptionsT[0] << '\t' << cleanOptionsT[1] << '\t' << choiceT << '\t';
 	learnSeries << currentReward << '\t' << cumulReward << '\t' << negReward << '\t';
 	//cout << currentReward << '\t' << cumulReward << '\t';
-	for (size_t j = 0; j < numEst; j++)
+	for (int j = 0; j < numEst; j++)
 	{
 		learnSeries << values[j] << '\t';
 		//cout << values[j] << '\t';
@@ -370,7 +375,7 @@ void agent::printDPData(ofstream &DPdata, double &outbr, int &time)	{
 	DPdata << time << '\t';
 	DPdata << alpha << '\t' << gamma << '\t' << tau << '\t' << neta << '\t';
 	DPdata << outbr << '\t';
-	for (size_t j = 0; j < 9; j++)
+	for (int j = 0; j < 9; j++)
 	{
 		DPdata << DPbackup[j] << '\t';
 		//cout << values[j] << '\t';
@@ -439,7 +444,7 @@ void agent::DPupdate(double &probRes, double &probVis, double &VisProbLeav,
 	{
 		for (int k = 0; k < 1000; k++)
 		{
-			for (size_t i = 0; i < 9; i++)
+			for (int i = 0; i < 9; i++)
 			{
 				DPid = i;//DPid = mapOptionsDP(cleanOptionsT, choiceT);
 				if (DPid == 0)
@@ -490,7 +495,7 @@ void agent::DPupdate(double &probRes, double &probVis, double &VisProbLeav,
 	}
 	else{						// In a natural setting
 		for (int k = 0; k < 1000; k++){
-			for (size_t i = 0; i < 9; i++){
+			for (int i = 0; i < 9; i++){
 				DPid = i;//DPid = mapOptionsDP(cleanOptionsT, choiceT);
 				if (DPid == 0 || DPid == 5 || DPid == 7){
 					transProb[0] = softMax(DPbackup[0], DPbackup[1])*
@@ -604,9 +609,9 @@ class FIATyp1 :public agent{			// Fully Informed Agent (FIA)
 	}
 };
 
-class PIATy1 :public agent{				// Partially Informed Agent (PIA)	
+class PIATyp1 :public agent{				// Partially Informed Agent (PIA)	
 	public:
-	PIATy1(double alphaI, double gammaI, double tauI, double netaI)
+	PIATyp1(double alphaI, double gammaI, double tauI, double netaI)
 	:agent(alphaI, gammaI, tauI, netaI){
 		numEst = 3;
 	}
@@ -648,7 +653,7 @@ void draw(client trainingSet[], int rounds, double &probRes, double &probVis){
 	// In a natural setting draw clients according to their abundance
 	double cumProbs[3] = { probRes, probRes + probVis, 1 };
 	double rndNum;
-	for (size_t i = 0; i < rounds * 2; i++){
+	for (int i = 0; i < rounds * 2; i++){
 		rndNum = rnd::uniform();
 		if (rndNum < cumProbs[0]) { trainingSet[i] = resident; }
 		else if (rndNum < cumProbs[1]) { trainingSet[i] = visitor; }
@@ -668,9 +673,8 @@ std::string douts(double j){			// turns double into string
 	return s.str();
 }
 
-string create_filename(std::string filename, agent &individual, int &seed,
-	bool experiment, double outbr,double forRat, double ResProb, 
-	double VisProb, double VisLeavP){
+string create_filename(std::string filename, agent &individual,
+	nlohmann::json param){
 	// name the file with the parameter specifications
 	filename.append("_alph");
 	filename.append(douts(individual.getLearnPar(alphaPar)));
@@ -681,60 +685,96 @@ string create_filename(std::string filename, agent &individual, int &seed,
 	filename.append("_neta");
 	filename.append(douts(individual.getLearnPar(netaPar)));
 	filename.append("_outb");
-	filename.append(douts(outbr));
+	filename.append(douts(param["outbr"]));
 	filename.append("_rP");
-	filename.append(douts(ResProb*10));
+	filename.append(douts(param["ResProb"]*10));
 	filename.append("_vP");
-	filename.append(douts(VisProb*10));
+	filename.append(douts(param["VisProb"]*10));
 	/*filename.append("_vLP");
 	filename.append(douts(VisLeavP * 100));*/
 	filename.append("_seed");
-	filename.append(itos(seed));
+	filename.append(itos(param["seed"]));
 	filename.append(".txt");
 	return(filename);
 }
 
-void initializeIndFile(ofstream &indOutput, ofstream &DPOutput, agent &learner,
-	int &seed,bool &experiment,double outbr,double forRat, double ResProb, 
-	double VisProb, double VisLeavP){
-	std::string namedir = "D:\\quinonesa\\Simulation\\"; 
+void initializeIndFile(ofstream &indOutput, agent &learner, 
+	nlohmann::json param, bool DP){
+	std::string namedir = param["folder"];
 	// "S:\\quinonesa\\Simulations\\Basic_sarsa\\"; //  //"M:\\prelim_results\\General\\"; // "E:\\Dropbox\\Neuchatel\\prelimResults\\Set_15\\IndTrain_equVal"
-	std::string namedirDP = "D:\\quinonesa\\Simulation\\";
+	std::string namedirDP = param["folder"];
 	//"S:\\quinonesa\\Simulations\\Basic_sarsa\\"; //"M:\\prelim_results\\General\\"; // "E:\\Dropbox\\Neuchatel\\prelimResults\\Set_15\\IndTrain_equVal"
-	std::string folder = typeid(learner).name();
-	std::string DPfolder = folder;
-	folder.erase(0, 6).append("\\IndTrain");
-	DPfolder.erase(0, 6).append("\\DP");
+	std::string folder;
+	if (DP){
+		folder = "\\DP";
+		folder.append("_");
+	}
+	else{
+		folder = typeid(learner).name();
+		folder.erase(0, 6).append("_");
+		cout << folder << '\t' << learner.getLearnPar(alphaPar) << '\t';
+		cout << learner.getLearnPar(gammaPar) << '\t';
+		cout << learner.getLearnPar(tauPar) << '\t';
+		cout << learner.getLearnPar(netaPar) << endl;
+	}
 	namedir.append(folder);
-	namedirDP.append(DPfolder);
-	cout << namedir << endl;
-	string IndFile = create_filename(namedir, learner, seed,experiment,outbr,
-		forRat, ResProb, VisProb, VisLeavP);
-	string DPfile = create_filename(namedirDP, learner, seed, experiment,outbr, 
-		forRat, ResProb, VisProb, VisLeavP);
+	string IndFile = create_filename(namedir, learner, param);
 	indOutput.open(IndFile.c_str());
-	DPOutput.open(DPfile.c_str());
-	indOutput << "Training" << '\t' << "Age" << '\t' << "Alpha" << '\t' << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t' << "Outbr" << '\t' << "Client1" << '\t' << "Client2" << '\t' << "Choice" << '\t';
-	indOutput << "Current.Reward" << '\t' << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
-	DPOutput << "Time" << '\t' << "Alpha" << '\t' << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t' << "Outbr" << '\t';
-	DPOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t' << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t' << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
-	DPOutput << endl;
-	if (learner.numEst > 3)
-	{
-		indOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t' << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t' << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
+	if (DP){
+		indOutput << "Time" << '\t' << "Alpha" << '\t' << "Gamma" << '\t';
+		indOutput << "Tau" << '\t' << "Neta" << '\t' << "Outbr" << '\t';
+		indOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t';
+		indOutput << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t';
+		indOutput << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
+		indOutput << endl;
 	}
-	else
-	{
-		indOutput << "Resident" << '\t' << "Visitor" << '\t' << "Absence" << '\t';
+	else {
+		indOutput << "Training" << '\t' << "Age" << '\t' << "Alpha" << '\t';
+		indOutput << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t';
+		indOutput << "Outbr" << '\t' << "Client1" << '\t' << "Client2" << '\t';
+		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
+		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
+
+		if (learner.numEst > 3) {
+			indOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t';
+			indOutput << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t';
+			indOutput << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
+		}
+		else {
+			indOutput << "Resident" << '\t' << "Visitor" << '\t';
+			indOutput << "Absence" << '\t';
+		}
+		indOutput << endl;
 	}
-	indOutput << endl;
 }
 
 
-int main(int argc, char** argv[])
+int main(int argc, _TCHAR* argv[])
 {
 	mark_time(1);
-	int const totRounds = 30000;
+	ifstream input(argv[1]);
+	if (input.fail()) { cout << "JSON file failed" << endl; }
+	json param = nlohmann::json::parse(input);
+
+	int const totRounds = param["totRounds"];
+	double ResReward = param["ResReward"];
+	double VisReward = param["VisReward"];
+	double ResProb = param["ResProb"];
+	double VisProb = param["VisProb"];
+	double ResProbLeav = param["ResProbLeav"];
+	double VisProbLeav = param["VisProbLeav"];
+	double negativeRew = param["negativeRew"];
+	bool experiment = param["experiment"];
+	double inbr = param["inbr"];
+	double outbr = param["outbr"];
+	int trainingRep = param["trainingRep"];
+	double alphaT = param["alphaT"];
+	const int numlearn = 2;
+	int printGen = param["printGen"];
+	int seed = param["seed"];
+	double forRat = param["forRat"];
+
+	/*int const totRounds = 30000;
 	double ResReward = 10;
 	double VisReward = ResReward;
 	double ResProb = 0.2;
@@ -758,7 +798,7 @@ int main(int argc, char** argv[])
 
 	double outbrRang[2] = { 0.0 };
 
-	//double visProbLeavRang[5] = { 0.1, 0.25, 0.5 ,0.75 , 1 };
+	double visProbLeavRang[5] = { 0.1, 0.25, 0.5 ,0.75 , 1 };
 
 	double gammaT;
 
@@ -770,86 +810,80 @@ int main(int argc, char** argv[])
 
 	double netaT;
 
-	double netaRange[1] = { 0.5 };
+	double netaRange[1] = { 0.5 };*/
 
 	rnd::set_seed(seed);
 
-	client clientSet[totRounds * 2];
+	client *clientSet;
+	clientSet = new client[totRounds * 2];
 	int idClientSet;
 
 	agent *learners[numlearn];
 	
-	for (size_t o = 0; o < 8; o++)
-	{
+	for (json::iterator itn = param["netaRange"].begin();
+		itn != param["netaRange"].end(); ++itn) {
 
-		for (size_t p = 0; p < 8; p++)
-		{
-			//VisProbLeav = visProbLeavRang[o];
-			/*for (size_t n = 0; n < 1; n++)
-			{*/
-				ResProb = resProbRang[o];
-				VisProb = visProbRang[p];
-				if (VisProb+ResProb<0.91)
-				{ 
-					//outbr = outbrRang[n];
-					for (size_t m = 0; m < 1; m++)
+		for (json::iterator itg = param["gammaRange"].begin();
+			itg != param["gammaRange"].end(); ++itg) {
+
+			for (json::iterator itt = param["tauRange"].begin();
+				itt != param["tauRange"].end(); ++itt) {
+
+				learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
+				learners[1] = new PIATyp1(alphaT, *itg, *itt, *itn);
+				ofstream printTest;
+				ofstream DPprint;
+
+				for (int k = 0; k < numlearn; ++k)
+				{
+					initializeIndFile(printTest, *learners[k], 
+						param, 0);
+					for (int i = 0; i < trainingRep; i++)
 					{
-
-						for (size_t k = 0; k < 1; k++)
+						draw(clientSet, totRounds, ResProb, VisProb);
+						idClientSet = 0;
+						for (int j = 0; j < totRounds; j++)
 						{
-							/*for (size_t l = 0; l < 2; l++)
-							{*/
-							gammaT = gammaRange[k];
-							tauT = tauRange[0];
-							netaT = netaRange[m];
-							ofstream printTest;
-							ofstream DPprint;
-
-							learners[0] = new FIATyp1(alphaT, gammaT, tauT, netaT);
-							learners[1] = new PIATy1(alphaT, gammaT, tauT, netaT);
-
-							for (int k = 0; k < numlearn; ++k)
+							learners[k]->act(clientSet, idClientSet, 
+								VisProbLeav, ResProbLeav, VisReward, ResReward,
+								inbr, outbr, negativeRew, experiment);
+							learners[k]->update();
+							learners[k]->forget(forRat);
+							if (j > totRounds*0.9)
 							{
-								initializeIndFile(printTest, DPprint, *learners[k], seed, experiment, outbr, forRat, ResProb, VisProb, VisProbLeav);
-								for (int i = 0; i < trainingRep; i++)
-								{
-									draw(clientSet, totRounds, ResProb, VisProb);
-									idClientSet = 0;
-									for (size_t j = 0; j < totRounds; j++)
-									{
-										learners[k]->act(clientSet, idClientSet, VisProbLeav, ResProbLeav, VisReward, ResReward, inbr, outbr, negativeRew, experiment);
-										learners[k]->update();
-										learners[k]->forget(forRat);
-										if (j > totRounds*0.9)
-										{
-											learners[k]->printIndData(printTest, i, outbr);
-										}
-										else if (j%printGen == 0)
-										{
-											learners[k]->printIndData(printTest, i, outbr);
-										}
-									}
-									learners[k]->rebirth();
-								}
-								printTest.close();
-								learners[k]->DPupdate(ResProb, VisProb, VisProbLeav, ResProbLeav, outbr, ResReward, VisReward, negativeRew, DPprint, experiment);
-								DPprint.close();
-								delete learners[k];
+								learners[k]->printIndData(printTest, i, outbr);
 							}
+							else if (j%printGen == 0)
+							{
+								learners[k]->printIndData(printTest, i, outbr);
+							}
+						}
+						learners[k]->rebirth();
+					}
+					printTest.close();
+					if (k == 0) {
+						initializeIndFile(DPprint, *learners[0], param, 1);
+						learners[k]->DPupdate(ResProb, VisProb, VisProbLeav, 
+							ResProbLeav, outbr,	ResReward, VisReward, 
+							negativeRew, DPprint, experiment);
+						DPprint.close();
+					}
+					delete learners[k];
+				}
 
 							//}
-						}
-					}
-				//}
 			}
-
 		}
-
+				//}
 	}
+
+	delete[] clientSet;
 
 	mark_time(0);
 
-	wait_for_return();
+	//wait_for_return();
 
 	return 0;
 }
+
+	
