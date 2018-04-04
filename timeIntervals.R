@@ -1,7 +1,7 @@
 # --------------------------------- Time intervals -------------------------------------------------#
 
-projDir<-"d:/quinonesa/learning_models_c++/functionAprox/"
-simsDir<-"s:/quinonesa/Simulations/functionAprox/General"
+projDir<-"d:/quinonesa/learning_models_c++/Sarsa"
+simsDir<-"s:/quinonesa/Simulations/Basic_sarsa/"
 
 # libraries ---------------------------------------------------------------------------------------
 source('d:/quinonesa/Dropbox/R_files/posPlots.R')
@@ -14,18 +14,18 @@ library('plotrix')
 
 # Define data to be loaded 
 
-(listPar<-c(rep("outb",3),"tau","gamma","neta"))
-(listVal<-c(0,0.1,0.2,10,0.8,0))
+(listPar<-"Olle")
+(listVal<-"")
 param<-getParam(simsDir,listparam = listPar,values = listVal)
 
-diffJsons(param[1],param[3])
+#diffJsons(param[1],param[3])
 
-list.files(simsDir,recursive = TRUE,pattern ="outb")
+list.files(simsDir,recursive = TRUE,pattern = "Olle_/")
 
 # Load interval data for FIA from the raw data
 FIAtimeInt<-do.call(
   rbind,lapply(
-    getFilelist(simsDir,listPar,listVal)$FIA[c(4,8,9)],
+    getFilelist(simsDir,listPar,listVal)$FIA,
     file2timeInter,interV=1001))
 
 # Load FIA data from processed file
@@ -62,14 +62,14 @@ DPdataProb<-do.call(rbind,
 
 extpar<-listPar[1]
 
-FIAIntstats<-FIAtimeInt[,.(meanProb=mean(Type_choice.mean),
-                           upIQR=fivenum(Type_choice.mean)[4],
-                           lowIQR=fivenum(Type_choice.mean)[2])
+FIAIntstats<-FIAtimeInt[,.(meanProb=mean(Prob.RV.V),
+                           upIQR=fivenum(Prob.RV.V)[4],
+                           lowIQR=fivenum(Prob.RV.V)[2])
                         ,by=.(Interv,Neta,Outbr,Tau,Gamma,get(extpar))]
 setnames(FIAIntstats,'get',extpar)
-PIAIntstats<-PIAtimeInt[,.(meanProb=mean(Type_choice.mean),
-                           upIQR=fivenum(Type_choice.mean)[4],
-                           lowIQR=fivenum(Type_choice.mean)[2])
+PIAIntstats<-PIAtimeInt[,.(meanProb=mean(Prob.RV.V),
+                           upIQR=fivenum(Prob.RV.V)[4],
+                           lowIQR=fivenum(Prob.RV.V)[2])
                         ,by=.(Interv,Neta,Outbr,Tau,Gamma,get(extpar))]
 setnames(PIAIntstats,'get',extpar)
 
@@ -78,7 +78,7 @@ with(FIAIntstats,{
   plotCI(x=Interv,y=meanProb,
          ui = upIQR,li=lowIQR,
          pch=16,xlab='',ylab='',
-         col=colboxes[match(get(extpar),unique(get(extpar)))],
+         col=colboxes[match(Gamma,unique(Gamma))],
          sfrac=0.002,cex.axis=1.3)
   lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
 })
@@ -87,10 +87,10 @@ with(DPdataProb,
                                 each=length(RV.V)),length(RV.V))),
                y=t(matrix(rep(probRV.V,2),length(RV.V))),
                lwd=2,lty = "dashed",
-               col=colboxes[match(get(extpar),unique(get(extpar)))])})
+               col=colboxes[match(Gamma,unique(Gamma))])})
 
-legend('bottomright',
-       legend=unique(FIAIntstats[,get(extpar)])[order(unique(FIAIntstats[,get(extpar)]))],
+legend('topright',
+       legend=unique(FIAIntstats[,Gamma])[order(unique(FIAIntstats[,Gamma]))],
               col=colboxes,pch=15,
               title=eval(extpar),cex=1.5,ncol=3)
 
@@ -100,7 +100,7 @@ with(PIAIntstats,{
   plotCI(x=Interv,y=meanProb,
          ui = upIQR,li=lowIQR,
          pch=16,xlab='',ylab='',
-         col=colboxes[match(get(extpar),unique(get(extpar)))],
+         col=colboxes[match(Gamma,unique(Gamma))],
          sfrac=0.002,cex.axis=1.3,yaxt='n')
   lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
   axis(side=4,cex.axis=1.3)

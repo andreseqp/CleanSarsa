@@ -20,7 +20,7 @@ param<-list(totRounds=30000,ResReward=10,VisReward=10,ResProb=0.2,VisProb=0.2,
             tauRange=c(5,10),netaRange=c(0,0.5),
             folder=simsDir)
 
-param<-list(totRounds=30000,ResReward=1,VisReward=1,ResProb=0.3,VisProb=0.3,
+param<-list(totRounds=10000,ResReward=1,VisReward=1,ResProb=0.3,VisProb=0.3,
             ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,
             alphaT=0.01,printGen=1,seed=1, gammaRange=c(0,0.8),
@@ -51,18 +51,19 @@ check_create.dir<-function(folder,param,values){
   }
 }
 
-rang<-c("")
+rang<-c(1,2)
 
-listfolders<-check_create.dir(simsDir,rep("Olle",1),rang)
+listfolders<-check_create.dir(simsDir,rep("factRew",2),rang)
 
-for (i in 1:1) {
-  param$folder<-paste(simsDir,'/',listfolders,'/',sep='')
+for (i in 1:2) {
+  param$folder<-paste(simsDir,'/',listfolders[i],'/',sep='')
+  param$ResReward<-param$ResReward*rang[i]
+  param$VisReward<-param$VisReward*rang[i]
+  param$negativeRew<-param$negativeRew*rang[i]
   outParam<-toJSON(param,auto_unbox = TRUE,pretty = TRUE)
-  if(file.exists(paste(param$folder,fileName,sep = '')))
-  {
+  if(file.exists(paste(param$folder,fileName,sep = ''))){
     currFile<-fromJSON(paste(param$folder,fileName,sep = ''))
-    if(sum(unlist(currFile)!=unlist(param))>0)
-    {
+    if(sum(unlist(currFile)!=unlist(param))>0){
       warning("You are erasing old files!! n\ Check first!!!",immediate. = TRUE)
       print("OLD value")
       print(unlist(currFile)[unlist(currFile)!=unlist(param)])
@@ -74,8 +75,7 @@ for (i in 1:1) {
       }
     }
   }
-  else
-  {
+  else{
     write(outParam,paste(simsDir,listfolders[i],fileName,sep="\\"))
   }
   # system(paste(exedir,
