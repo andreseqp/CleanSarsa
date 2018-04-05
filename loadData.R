@@ -113,13 +113,22 @@ file2timeInter<-function(filename,interV,maxAge=-2){
   return(tmptimeInter)
 }
 
-tmp1$fullRVoptions<-(tmp1$Client1==1& tmp1$Client2==0) | 
-  (tmp1$Client1==0 & tmp1$Client2==1)
-
-tmp2<-tmp1[fullRVoptions==TRUE,.(Prob.RV.V=mean(Choice)),
-           by=.(Interv=floor(Age/interV),Training,Alpha,Gamma,Tau,Neta,Outbr)]
-
 file2lastDP<-function(filename){
+  extPar<-strsplit(filename,split ="_/")[[1]][1]
+  parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
+  extPar<-gsub("[[:digit:]]",extPar,replacement = '')
+  tmp<-fread(filename)
+  tmpProbsDP<-tmp[Time==max(Time),
+                  .(probRV.V=soft_max(RV.V,RV.R,Tau),RV.V,RV.R),
+                  by=.(Alpha,Gamma,Tau,Neta,Outbr)]
+  if(length(extPar)>0){
+    tmpProbsDP[,eval(extPar):=parVal]
+  }
+  return(tmpProbsDP)
+}
+
+file2lastDP<-function(filename)
+{
   extPar<-strsplit(filename,split ="_/")[[1]][1]
   parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
   extPar<-gsub("[[:digit:]]",extPar,replacement = '')

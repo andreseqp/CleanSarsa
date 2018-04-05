@@ -1,6 +1,6 @@
 # --------------------------------- Time intervals -------------------------------------------------#
 
-projDir<-"d:/quinonesa/learning_models_c++/Sarsa"
+projDir<-"d:/quinonesa/learning_models_c++/Sarsa/"
 simsDir<-"s:/quinonesa/Simulations/Basic_sarsa/"
 
 # libraries ---------------------------------------------------------------------------------------
@@ -14,8 +14,8 @@ library('plotrix')
 
 # Define data to be loaded 
 
-(listPar<-"Olle")
-(listVal<-"")
+(listPar<-rep("factRew",2))
+(listVal<-c(1,2))
 param<-getParam(simsDir,listparam = listPar,values = listVal)
 
 #diffJsons(param[1],param[3])
@@ -74,14 +74,15 @@ PIAIntstats<-PIAtimeInt[,.(meanProb=mean(Prob.RV.V),
 setnames(PIAIntstats,'get',extpar)
 
 par(plt=posPlot(numplotx = 2,idplotx = 1)+c(-0.05,-0.05,0,0),yaxt='s',las=1)
-with(FIAIntstats,{
+with(FIAIntstats[Neta==0.5&factRew==2],{
   plotCI(x=Interv,y=meanProb,
          ui = upIQR,li=lowIQR,
          pch=16,xlab='',ylab='',
          col=colboxes[match(Gamma,unique(Gamma))],
-         sfrac=0.002,cex.axis=1.3)
+         sfrac=0.002,cex.axis=1.3,ylim=c(0,1))
   lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
 })
+
 with(DPdataProb,  
      {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
                                 each=length(RV.V)),length(RV.V))),
@@ -110,7 +111,57 @@ png(filename = paste(projDir,eval(extpar),".png",sep=""))
 
 dev.off()
 
-param[1]
+# Replicating Olle's simulations -----------------------------------------------
+
+colOlle<-c("red","green")
+colOlle2<-c("blue","black")
+
+cexpar<-1.5
+
+png(filename = "d:/quinonesa/Dropbox/Neuchatel/Olle/Sarsa_Olle_par.png",
+    width = 800,height = 800)
+
+par(plt=posPlot(numplotx = 1,idplotx = 1),yaxt='s',las=1)
+with(FIAIntstats[Neta==0.5&factRew==2],{
+  plotCI(x=Interv,y=meanProb,
+         ui = upIQR,li=lowIQR,
+         pch=16,xlab='Time',ylab='Prob. V over R',cex.lab=2,
+         col=colOlle[match(Gamma,unique(Gamma))],
+         sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
+  lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
+})
+par(new=TRUE)
+with(FIAIntstats[Neta==0&factRew==1],{
+  plotCI(x=Interv,y=meanProb,
+         ui = upIQR,li=lowIQR,
+         pch=16,xlab='',ylab='',
+         col=colOlle2[match(Gamma,unique(Gamma))],
+         sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
+  lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
+})
+
+with(DPdataProb[Neta==0.5&factRew==2],  
+     {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
+                                each=length(RV.V)),length(RV.V))),
+               y=t(matrix(rep(probRV.V,2),length(RV.V))),
+               lwd=2,lty = "dashed",cex=1.2,
+               col=colOlle[match(Gamma,unique(Gamma))])})
+
+with(DPdataProb[Neta==0&factRew==1],  
+     {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
+                                each=length(RV.V)),length(RV.V))),
+               y=t(matrix(rep(probRV.V,2),length(RV.V))),
+               lwd=2,lty = "dashed",cex=1.2,
+               col=colOlle2[match(Gamma,unique(Gamma))])})
+
+legend('bottomright',
+       legend=c("Punishment and future", "punishment",
+                "future","no punishment no future"),
+       col=c(colOlle,colOlle2),pch=15,cex=1.5,ncol=1)
+
+dev.off()
+
+
 
 
   
