@@ -24,7 +24,7 @@ param<-list(totRounds=10000,ResReward=1,VisReward=1,ResProb=0.3,VisProb=0.3,
             ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,
             alphaT=0.01,printGen=1,seed=1, gammaRange=c(0,0.8),
-            tauRange=c(0.6667),netaRange=c(0,0.5),
+            tauRange=c(0.6667,1),netaRange=c(0,0.5),
             folder=simsDir)
 
 setwd(simsDir)

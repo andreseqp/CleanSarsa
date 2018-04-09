@@ -22,11 +22,15 @@ param<-getParam(simsDir,listparam = listPar,values = listVal)
 
 list.files(simsDir,recursive = TRUE,pattern = "Olle_/")
 
+interv<-501
+
 # Load interval data for FIA from the raw data
 FIAtimeInt<-do.call(
   rbind,lapply(
     getFilelist(simsDir,listPar,listVal)$FIA,
-    file2timeInter,interV=1001))
+    file2timeInter,interV=interv))
+
+
 
 # Load FIA data from processed file
 
@@ -41,7 +45,7 @@ FIAtimeInt<-do.call(
 PIAtimeInt<-do.call(
   rbind,lapply(
     getFilelist(simsDir,listPar,listVal)$PIA,
-    file2timeInter,interV=1001))
+    file2timeInter,interV=interv))
 
 # Load PIA data from processed file
 
@@ -74,7 +78,7 @@ PIAIntstats<-PIAtimeInt[,.(meanProb=mean(Prob.RV.V),
 setnames(PIAIntstats,'get',extpar)
 
 par(plt=posPlot(numplotx = 2,idplotx = 1)+c(-0.05,-0.05,0,0),yaxt='s',las=1)
-with(FIAIntstats[Neta==0.5&factRew==2],{
+with(FIAIntstats[(Neta==0.5&factRew==2)],{
   plotCI(x=Interv,y=meanProb,
          ui = upIQR,li=lowIQR,
          pch=16,xlab='',ylab='',
@@ -117,47 +121,55 @@ colOlle<-c("red","green")
 colOlle2<-c("blue","black")
 
 cexpar<-1.5
+yaxRangy<-c('s','n')
+
+ylabRang<-c("Prob. V over R","")
 
 png(filename = "d:/quinonesa/Dropbox/Neuchatel/Olle/Sarsa_Olle_par.png",
     width = 800,height = 800)
+count<-0
+for(tau in unique(FIAIntstats$Tau)){
 
-par(plt=posPlot(numplotx = 1,idplotx = 1),yaxt='s',las=1)
-with(FIAIntstats[Neta==0.5&factRew==2],{
-  plotCI(x=Interv,y=meanProb,
-         ui = upIQR,li=lowIQR,
-         pch=16,xlab='Time',ylab='Prob. V over R',cex.lab=2,
-         col=colOlle[match(Gamma,unique(Gamma))],
-         sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
-  lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
-})
-par(new=TRUE)
-with(FIAIntstats[Neta==0&factRew==1],{
-  plotCI(x=Interv,y=meanProb,
-         ui = upIQR,li=lowIQR,
-         pch=16,xlab='',ylab='',
-         col=colOlle2[match(Gamma,unique(Gamma))],
-         sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
-  lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
-})
-
-with(DPdataProb[Neta==0.5&factRew==2],  
-     {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
-                                each=length(RV.V)),length(RV.V))),
-               y=t(matrix(rep(probRV.V,2),length(RV.V))),
-               lwd=2,lty = "dashed",cex=1.2,
-               col=colOlle[match(Gamma,unique(Gamma))])})
-
-with(DPdataProb[Neta==0&factRew==1],  
-     {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
-                                each=length(RV.V)),length(RV.V))),
-               y=t(matrix(rep(probRV.V,2),length(RV.V))),
-               lwd=2,lty = "dashed",cex=1.2,
-               col=colOlle2[match(Gamma,unique(Gamma))])})
-
+  count<-count+1
+  par(plt=posPlot(numplotx = 2,idplotx = count),yaxt=yaxRangy[count],las=1,
+      new=c(FALSE,TRUE)[count])
+  with(FIAIntstats[(Neta==0.5&factRew==2)&Tau==tau],{
+    plotCI(x=Interv,y=meanProb,
+           ui = upIQR,li=lowIQR,
+           pch=16,xlab='Time',ylab=ylabRang[count],cex.lab=2,
+           col=colOlle[match(Gamma,unique(Gamma))],
+           sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
+    lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
+  })
+  par(new=TRUE)
+  with(FIAIntstats[(Neta==0&factRew==1)&Tau==tau],{
+    plotCI(x=Interv,y=meanProb,
+           ui = upIQR,li=lowIQR,
+           pch=16,xlab='',ylab='',
+           col=colOlle2[match(Gamma,unique(Gamma))],
+           sfrac=0.002,cex.axis=1.3,ylim=c(0,1),cex=cexpar)
+    lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
+  })
+  
+  with(DPdataProb[(Neta==0.5&factRew==2)&Tau==tau],  
+       {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
+                                  each=length(RV.V)),length(RV.V))),
+                 y=t(matrix(rep(probRV.V,2),length(RV.V))),
+                 lwd=2,lty = "dashed",cex=1.2,
+                 col=colOlle[match(Gamma,unique(Gamma))])})
+  
+  with(DPdataProb[(Neta==0&factRew==1)&Tau==tau],  
+       {matlines(x = t(matrix(rep(max(FIAtimeInt$Interv)*c(0.75,1),
+                                  each=length(RV.V)),length(RV.V))),
+                 y=t(matrix(rep(probRV.V,2),length(RV.V))),
+                 lwd=2,lty = "dashed",cex=1.2,
+                 col=colOlle2[match(Gamma,unique(Gamma))])})
+  text()
+}
 legend('bottomright',
        legend=c("Punishment and future", "punishment",
                 "future","no punishment no future"),
-       col=c(colOlle,colOlle2),pch=15,cex=1.5,ncol=1)
+       col=c(colOlle,colOlle2),pch=15,cex=1.2,ncol=1)
 
 dev.off()
 
