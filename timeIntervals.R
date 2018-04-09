@@ -164,12 +164,14 @@ for(tau in unique(FIAIntstats$Tau)){
                  y=t(matrix(rep(probRV.V,2),length(RV.V))),
                  lwd=2,lty = "dashed",cex=1.2,
                  col=colOlle2[match(Gamma,unique(Gamma))])})
-  text()
+  text(x=par('usr')[1]+0.15*(par('usr')[2]-par('usr')[1]),
+       y=par('usr')[3]+0.1*(par('usr')[4]-par('usr')[3]),
+       labels = bquote(tau==.(tau)))
 }
 legend('bottomright',
        legend=c("Punishment and future", "punishment",
                 "future","no punishment no future"),
-       col=c(colOlle,colOlle2),pch=15,cex=1.2,ncol=1)
+       col=c(colOlle,colOlle2),pch=15,cex=1.1,ncol=1)
 
 dev.off()
 
