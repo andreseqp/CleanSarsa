@@ -16,7 +16,7 @@ library('plotrix')
 
 (listPar<-rep("factRew",2))
 (listVal<-c(1,2))
-param<-getParam(simsDir,listparam = listPar,values = listVal)
+(param<-getParam(simsDir,listparam = listPar,values = listVal))
 
 #diffJsons(param[1],param[3])
 
@@ -126,7 +126,7 @@ yaxRangy<-c('s','n')
 ylabRang<-c("Prob. V over R","")
 
 png(filename = "d:/quinonesa/Dropbox/Neuchatel/Olle/Sarsa_Olle_par.png",
-    width = 800,height = 800)
+    width = 1600,height = 800)
 count<-0
 for(tau in unique(FIAIntstats$Tau)){
 
@@ -166,12 +166,12 @@ for(tau in unique(FIAIntstats$Tau)){
                  col=colOlle2[match(Gamma,unique(Gamma))])})
   text(x=par('usr')[1]+0.15*(par('usr')[2]-par('usr')[1]),
        y=par('usr')[3]+0.1*(par('usr')[4]-par('usr')[3]),
-       labels = bquote(tau==.(tau)))
+       labels = bquote(tau==.(tau)),cex = 2)
 }
 legend('bottomright',
        legend=c("Punishment and future", "punishment",
                 "future","no punishment no future"),
-       col=c(colOlle,colOlle2),pch=15,cex=1.1,ncol=1)
+       col=c(colOlle,colOlle2),pch=15,cex=1.3,ncol=1)
 
 dev.off()
 
