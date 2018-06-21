@@ -103,7 +103,7 @@ public:
 	// Get reward
 	double softMax(double &value1, double &value2);
 	// Calculate probability of taken a given action
-	void agent::DPupdate(double &probRes, double &probVis, double &VisProbLeav,
+	void agent::DPupdate(double probRes, double probVis, double &VisProbLeav,
 		double &ResProbLeav, double &outbr, double &ResReward, 
 		double &VisReward, double &negReward, ofstream &DPdata, bool &experiment);
 	// Obtain expected values from a Dynamic programing algorithm
@@ -340,7 +340,7 @@ void agent::update(){
 	// change estimated value according to current reward and estimates of future state-action pair
 	int currentStAct = mapOptions(cleanOptionsT, choiceT);
 	int nextStAct = mapOptions(cleanOptionsT1, choiceT1);
-	values[currentStAct] += alpha*(currentReward*(1-neta) + 
+	values[currentStAct] += alpha*(currentReward + 
 		negReward*neta + gamma*values[nextStAct] - values[currentStAct]);
 }
 
@@ -425,7 +425,7 @@ int agent::mapOptionsDP(client options[], int &choice){
 	else { stateAction = 6; }			 // State = VV , action = V
 	return stateAction;
 }
-void agent::DPupdate(double &probRes, double &probVis, double &VisProbLeav, 
+void agent::DPupdate(double probRes, double probVis, double &VisProbLeav, 
 	double &ResProbLeav, double &outbr, double &ResReward, double &VisReward, 
 	double &negativeRew, ofstream &DPdata,bool &experiment){
 // Expected value according to DP algorithm
@@ -649,7 +649,7 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 
 // Functions external to the agent
 
-void draw(client trainingSet[], int rounds, double &probRes, double &probVis){					
+void draw(client trainingSet[], int rounds, double probRes, double probVis){					
 	// In a natural setting draw clients according to their abundance
 	double cumProbs[3] = { probRes, probRes + probVis, 1 };
 	double rndNum;
@@ -674,7 +674,7 @@ std::string douts(double j){			// turns double into string
 }
 
 string create_filename(std::string filename, agent &individual,
-	nlohmann::json param){
+	nlohmann::json param, double pV, double pR) {
 	// name the file with the parameter specifications
 	filename.append("_alph");
 	filename.append(douts(individual.getLearnPar(alphaPar)));
@@ -684,22 +684,18 @@ string create_filename(std::string filename, agent &individual,
 	filename.append(douts(individual.getLearnPar(tauPar)));
 	filename.append("_neta");
 	filename.append(douts(individual.getLearnPar(netaPar)));
-	filename.append("_outb");
-	filename.append(douts(param["outbr"]));
-	filename.append("_rP");
-	filename.append(douts(param["ResProb"]*10));
-	filename.append("_vP");
-	filename.append(douts(param["VisProb"]*10));
-	/*filename.append("_vLP");
-	filename.append(douts(VisLeavP * 100));*/
+	filename.append("_pV");
+	filename.append(douts(pV));
+	filename.append("_pR");
+	filename.append(douts(pR));
 	filename.append("_seed");
 	filename.append(itos(param["seed"]));
 	filename.append(".txt");
 	return(filename);
 }
 
-void initializeIndFile(ofstream &indOutput, agent &learner, 
-	nlohmann::json param, bool DP){
+void initializeIndFile(ofstream &indOutput, agent &learner,
+	nlohmann::json param, bool DP, double pV, double pR) {
 	std::string namedir = param["folder"];
 	// "S:\\quinonesa\\Simulations\\Basic_sarsa\\"; //  //"M:\\prelim_results\\General\\"; // "E:\\Dropbox\\Neuchatel\\prelimResults\\Set_15\\IndTrain_equVal"
 	std::string namedirDP = param["folder"];
@@ -718,7 +714,7 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 		cout << learner.getLearnPar(netaPar) << endl;
 	}
 	namedir.append(folder);
-	string IndFile = create_filename(namedir, learner, param);
+	string IndFile = create_filename(namedir, learner, param, pV, pR);
 	indOutput.open(IndFile.c_str());
 	if (DP){
 		indOutput << "Time" << '\t' << "Alpha" << '\t' << "Gamma" << '\t';
@@ -759,8 +755,6 @@ int main(int argc, _TCHAR* argv[])
 	int const totRounds = param["totRounds"];
 	double ResReward = param["ResReward"];
 	double VisReward = param["VisReward"];
-	double ResProb = param["ResProb"];
-	double VisProb = param["VisProb"];
 	double ResProbLeav = param["ResProbLeav"];
 	double VisProbLeav = param["VisProbLeav"];
 	double negativeRew = param["negativeRew"];
@@ -819,62 +813,72 @@ int main(int argc, _TCHAR* argv[])
 	int idClientSet;
 
 	agent *learners[numlearn];
-	
-	for (json::iterator itn = param["netaRange"].begin();
-		itn != param["netaRange"].end(); ++itn) {
+	for (json::iterator itVisProb = param["VisProb"].begin();
+		itVisProb != param["VisProb"].end(); ++itVisProb) {
+		for (json::iterator itResProb = param["ResProb"].begin();
+			itResProb != param["ResProb"].end(); ++itResProb) {
+			double tmp1 = *itResProb;
+			double tmp2 = *itVisProb;
+			if (tmp1 + tmp2 <= 1) {
+				for (json::iterator itn = param["netaRange"].begin();
+					itn != param["netaRange"].end(); ++itn) {
 
-		for (json::iterator itg = param["gammaRange"].begin();
-			itg != param["gammaRange"].end(); ++itg) {
+					for (json::iterator itg = param["gammaRange"].begin();
+						itg != param["gammaRange"].end(); ++itg) {
 
-			for (json::iterator itt = param["tauRange"].begin();
-				itt != param["tauRange"].end(); ++itt) {
+						for (json::iterator itt = param["tauRange"].begin();
+							itt != param["tauRange"].end(); ++itt) {
 
-				learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
-				learners[1] = new PIATyp1(alphaT, *itg, *itt, *itn);
-				ofstream printTest;
-				ofstream DPprint;
+							learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
+							learners[1] = new PIATyp1(alphaT, *itg, *itt, *itn);
+							ofstream printTest;
+							ofstream DPprint;
 
-				for (int k = 0; k < numlearn; ++k)
-				{
-					initializeIndFile(printTest, *learners[k], 
-						param, 0);
-					for (int i = 0; i < trainingRep; i++)
-					{
-						draw(clientSet, totRounds, ResProb, VisProb);
-						idClientSet = 0;
-						for (int j = 0; j < totRounds; j++)
-						{
-							learners[k]->act(clientSet, idClientSet, 
-								VisProbLeav, ResProbLeav, VisReward, ResReward,
-								inbr, outbr, negativeRew, experiment);
-							learners[k]->update();
-							learners[k]->forget(forRat);
-							if (j > totRounds*0.9)
+							for (int k = 0; k < numlearn; ++k)
 							{
-								learners[k]->printIndData(printTest, i, outbr);
+								initializeIndFile(printTest, *learners[k],
+									param, 0, *itVisProb, *itResProb);
+								for (int i = 0; i < trainingRep; i++)
+								{
+									draw(clientSet, totRounds, *itResProb, *itVisProb);
+									idClientSet = 0;
+									for (int j = 0; j < totRounds; j++)
+									{
+										learners[k]->act(clientSet, idClientSet,
+											VisProbLeav, ResProbLeav, VisReward, ResReward,
+											inbr, outbr, negativeRew, experiment);
+										learners[k]->update();
+										learners[k]->forget(forRat);
+										if (j > totRounds*0.9)
+										{
+											learners[k]->printIndData(printTest, i, outbr);
+										}
+										else if (j%printGen == 0)
+										{
+											learners[k]->printIndData(printTest, i, outbr);
+										}
+									}
+									learners[k]->rebirth();
+								}
+								printTest.close();
+								if (k == 0) {
+									initializeIndFile(DPprint, *learners[0], param, 1,
+										*itVisProb, *itResProb);
+									learners[k]->DPupdate(*itResProb, *itVisProb, VisProbLeav,
+										ResProbLeav, outbr, ResReward, VisReward,
+										negativeRew, DPprint, experiment);
+									DPprint.close();
+								}
+								delete learners[k];
 							}
-							else if (j%printGen == 0)
-							{
-								learners[k]->printIndData(printTest, i, outbr);
-							}
-						}
-						learners[k]->rebirth();
-					}
-					printTest.close();
-					if (k == 0) {
-						initializeIndFile(DPprint, *learners[0], param, 1);
-						learners[k]->DPupdate(ResProb, VisProb, VisProbLeav, 
-							ResProbLeav, outbr,	ResReward, VisReward, 
-							negativeRew, DPprint, experiment);
-						DPprint.close();
-					}
-					delete learners[k];
-				}
 
 							//}
+						}
+					}
+					//}
+				}
 			}
 		}
-				//}
 	}
 
 	delete[] clientSet;

@@ -69,14 +69,14 @@ loadRawData<-function(folder,agent,listparam,values){
 
 getParam<-function(folder,agent,listparam=NULL,values=NULL){
   setwd(folder)
-  irrelPar<-c("gamma","tau","neta")
+  irrelPar<-c("gamma","tau","neta","pR","pV")
   listRaw<-list.files(folder,recursive = TRUE)
   jsonsList<-grep(".json",listRaw,value = TRUE)
   indRelPar<-seq(length(listparam))
   for(param in irrelPar){
-      indRelPar<-grep(param,listparam,invert = TRUE)
-      listparam<-listparam[indRelPar]
-      values<-values[indRelPar]
+    indRelPar<-grep(param,listparam,invert = TRUE)
+    listparam<-listparam[indRelPar]
+    values<-values[indRelPar]
   }
   if(length(listparam)!=length(values)){
     warning("Parameter list and values don't match",immediate. = TRUE)
@@ -89,7 +89,7 @@ getParam<-function(folder,agent,listparam=NULL,values=NULL){
       for (param in unique(listparam)){
         valsparam<-values[grep(param,listparam)]
         jsonsList<-do.call(list.append,lapply(paste(param,valsparam,"_",sep=""),
-                                            grep,x=jsonsList,value=TRUE))
+                                              grep,x=jsonsList,value=TRUE))
       }
     }
   }
@@ -142,6 +142,34 @@ file2lastDP<-function(filename)
   return(tmpProbsDP)
 }
 
+file2lastProp<-function(filename,prop,outPar=NULL) {
+  if(length(outPar)>0){
+    extPar<-grep(outPar,strsplit(filename,"_/")[[1]],
+                 value=TRUE)
+    parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
+    extPar<-gsub("[[:digit:]]",extPar,replacement = '')
+  }
+  tmp<-fread(filename)
+  tmp[,':='(pV=as.numeric(gsub("[[:alpha:]]",
+                               grep("pV",
+                                    strsplit(filename,"_")[[1]],
+                                    value=TRUE),replacement = "")),
+            pR=as.numeric(gsub("[[:alpha:]]",
+                               grep("pR",
+                                    strsplit(filename,"_")[[1]],
+                                    value=TRUE),replacement = ""))
+  )]
+  tmp$fullRVoptions<-(tmp$Client1==1& tmp$Client2==0) |
+    (tmp$Client1==0 & tmp$Client2==1)
+  tmp<-tmp[Age>max(Age)*prop]
+  lastchunk<-tmp[fullRVoptions==TRUE,
+                 list(Prob.RV.V=mean(Choice)),
+                 by=.(Training,Gamma,Neta,pR,pV,Outbr)]
+  if(length(outPar)>0){
+    lastchunk[,eval(outPar):=parVal]
+  }
+  return(lastchunk)
+}
 
 soft_max<-function(x,y,t){
   return(exp(x/t)/(exp(x/t)+exp(y/t)))
@@ -154,4 +182,26 @@ diffJsons<-function(json1,json2){
   print(unlist(json2)[unlist(json1)!=unlist(json2)])
 }
 
+loadDataFirstReach<-function(filename,bound){
+  tmp<-fread(filename)
+  tmp$fullRVoptions<-(tmp$Client1==1& tmp$Client2==0) | (tmp$Client1==0 & tmp$Client2==1)
+  tmp[,':='(ReachedCut=soft_max(x = RV.V,y = RV.R,t=Tau)>bound,
+            pV=as.numeric(gsub("[[:alpha:]]",
+                               grep("pV",
+                                    strsplit(filename,"_")[[1]],
+                                    value=TRUE),replacement = "")),
+            pR=as.numeric(gsub("[[:alpha:]]",
+                               grep("pR",
+                                    strsplit(filename,"_")[[1]],
+                                    value=TRUE),replacement = ""))
+      )]
+  
+  tmpFirstR<-tmp[ReachedCut==TRUE,.(firstReach=min(Age),
+                                    Prob.RV.V=soft_max(
+                                      x = RV.V[Age==min(Age)],
+                                      y = RV.R[Age==min(Age)],
+                                      t = Tau[Age==min(Age)])),
+                 by=.(Training,Gamma,Neta,pR,pV,Outbr)]
+  return(tmpFirstR)
+}
 

@@ -4,7 +4,7 @@ library("jsonlite")
 
 projDir<-"D:\\quinonesa\\learning_models_c++\\Sarsa"
 
-simsDir<-"S:/quinonesa/Simulations/Basic_sarsa"
+simsDir<-"S:/quinonesa/Simulations/Basic_sarsa/"
 
 exedir<-paste(projDir,'/./Sarsa.exe',sep='')
 
@@ -20,11 +20,13 @@ param<-list(totRounds=30000,ResReward=10,VisReward=10,ResProb=0.2,VisProb=0.2,
             tauRange=c(5,10),netaRange=c(0,0.5),
             folder=simsDir)
 
-param<-list(totRounds=10000,ResReward=1,VisReward=1,ResProb=0.3,VisProb=0.3,
-            ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+param<-list(totRounds=20000,ResReward=1,VisReward=1,
+            ResProb=0.2,
+            VisProb=0.2,
+            ResProbLeav=0,VisProbLeav=1,negativeRew=-1,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,
             alphaT=0.01,printGen=1,seed=1, gammaRange=c(0,0.8),
-            tauRange=c(0.6667,1),netaRange=c(0,0.5),
+            tauRange=c(1),netaRange=c(0,1),alphaThRange=c(0.01),
             folder=simsDir)
 
 setwd(simsDir)
@@ -51,15 +53,19 @@ check_create.dir<-function(folder,param,values){
   }
 }
 
-rang<-c(1,2)
+rang<-c("")
+rangAbund<-seq(0,0.9,length=10)
 
-listfolders<-check_create.dir(simsDir,rep("factRew",2),rang)
+listfolders<-check_create.dir(simsDir,param = rep("AbundanceLpr1",1),
+                              values = rang)
 
-for (i in 1:2) {
-  param$folder<-paste(simsDir,'/',listfolders[i],'/',sep='')
-  param$ResReward<-param$ResReward*rang[i]
-  param$VisReward<-param$VisReward*rang[i]
-  param$negativeRew<-param$negativeRew*rang[i]
+for (i in 1:1) {
+  param$folder<-paste(simsDir,listfolders[1],'/',sep='')
+  param$ResProb<-rangAbund
+  param$VisProb<-rangAbund
+  param$ResProbLeav<-1
+  param$totRounds<-20000
+  param$printGen<-100
   outParam<-toJSON(param,auto_unbox = TRUE,pretty = TRUE)
   if(file.exists(paste(param$folder,fileName,sep = ''))){
     currFile<-fromJSON(paste(param$folder,fileName,sep = ''))
