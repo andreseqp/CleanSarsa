@@ -38,15 +38,15 @@ titX<-matrix(c(rep('',7),'Learning trial',''),ncol=3,byrow = TRUE)
 
 setwd(simsDir)
 
-(listPar<-c("AbundanceLp"))
+(listPar<-c("AbundanceB"))
 
-(listVal<-c(0))
+(listVal<-c(""))
 
 param<-getParam(simsDir,listparam = listPar,values = listVal)
 
 FIAfirstReach<-do.call(rbind,lapply(
   getFilelist(simsDir,listPar,listVal)$FIA,
-                                    loadDataFirstReach,0.6))
+                                    loadDataFirstReach,0.7))
 
 FIAfrStats<-FIAfirstReach[,.(firstReach=mean(firstReach),
                              Prob.RV.V=mean(Prob.RV.V)),
@@ -142,79 +142,6 @@ with(FIAinterpData.Neg,{
                  numploty = 5,idplotx = 5,idploty = 4)
 })
 
-# variation panel -----------------------------------------------------------------------
-
-paletteVar <- colorRampPalette(c('#d8b365','#f5f5f5','#5ab4ac'),alpha=TRUE)
-
-npoints<-100
-
-interpDataVar<-with(stateLastQuarData[Neta==0&Gamma==0.8],
-                    {interp(x=pR,y=pV,
-                            z=Prob.RV.V,
-                            duplicate = "user",
-                            dupfun = {function(x) fivenum(x)[4]-fivenum(x)[2]},
-                                           nx=npoints,ny=npoints)})
-bound <-0.8
-
-state.stats<-stateLastQuarData[,.(meanProb=mean(Prob.RV.V),
-                                  upIQR=fivenum(Prob.RV.V)[4],
-                                  lowIQR=fivenum(Prob.RV.V)[2])
-                               ,by=.(Neta,Gamma,resProb,visProb,Outbr)]
-
-
-
-str(interpDataVar)
-
-interpDataVarTrans<-data.table(matrix(0,nrow = npoints*npoints,ncol = 4))
-
-names(interpDataVarTrans)<-c("resProb","visProb","IQR","notProb")
-for (i in 1:npoints) {
-  for (j in 1:npoints) {
-    interpDataVarTrans[(i-1)*npoints+j,resProb:=interpDataVar$x[i]]
-    interpDataVarTrans[(i-1)*npoints+j,visProb:=interpDataVar$y[j]]
-    interpDataVarTrans[(i-1)*npoints+j,IQR:=interpDataVar$z[i,j]]
-  }
-  
-}
-
-interpDataVarTrans[,4]<-1-interpDataVarTrans[,1]-interpDataVarTrans[,2]
-
-interpDataVarTrans<-interpDataVarTrans[resProb+visProb<0.9]
-
-interpDataVar.Neg<-with(stateLastQuarData[Neta==1&Gamma==0],
-                        {interp(x=pR,y=pV,z=Prob.RV.V,
-                                duplicate = "user",
-                                dupfun = 
-                                  {function(x) fivenum(x)[4]-fivenum(x)[2]},
-                                                       nx=npoints,ny=npoints)})
-
-interpDataVarTrans.Neg<-data.table(matrix(0,nrow = npoints*npoints,ncol = 4))
-
-names(interpDataVarTrans.Neg)<-c("resProb","visProb","IQR","notProb")
-for (i in 1:npoints) {
-  for (j in 1:npoints) {
-    interpDataVarTrans.Neg[(i-1)*npoints+j,resProb:=interpDataVar.Neg$x[i]]
-    interpDataVarTrans.Neg[(i-1)*npoints+j,visProb:=interpDataVar.Neg$y[j]]
-    interpDataVarTrans.Neg[(i-1)*npoints+j,IQR:=interpDataVar.Neg$z[i,j]]
-  }
-  
-}
-
-interpDataVarTrans.Neg[,4]<-1-interpDataVarTrans.Neg[,1]-interpDataVarTrans.Neg[,2]
-
-interpDataVarTrans.Neg<-interpDataVarTrans.Neg[resProb+visProb<0.9]
-
-with(state.stats[Neta==1&Gamma==0],{
-  ternaryplot(cbind(pR,pV,notProb),
-              col = paletteVar(100)[findInterval(upIQR-lowIQR,
-                                                 seq(min(upIQR-lowIQR),
-                                                     max(upIQR-lowIQR),
-                                                     length=100))],
-              main="",cex=0.8);
-  color.bar.aeqp(paletteVar(100),min =round(min(upIQR-lowIQR),3),
-            max = round(max(upIQR-lowIQR),3),
-            nticks = 3,numplotx = 15,numploty = 8,idplotx =8,idploty = 8)
-})
 
 
 # Plot  real Speed data -----------------------------------------------------------------------
@@ -274,7 +201,7 @@ with(na.omit(FIAinterpDataSpeed.Neg),{
 
 
 png(paste("d:/quinonesa/Dropbox/Neuchatel/Figs/Sarsa/",
-          "triplex_pLV0.png",sep=""),
+          "triplex_baseline.png",sep=""),
     width=1000,height=1000)
 
 cex.lab.par<-1.2
@@ -291,10 +218,10 @@ colorbreaksSpeed<-seq(min(c(FIAinterpDataSpeed$firstReach,
                             FIAinterpDataSpeed.Neg$firstReach),
                           na.rm=TRUE),length=100)
 
-colorbreaksSpeed<-seq(min(FIAinterpDataSpeed$firstReach,
-                          na.rm = TRUE),
-                      max(FIAinterpDataSpeed$firstReach,
-                          na.rm=TRUE),length=100)
+# colorbreaksSpeed<-seq(min(FIAinterpDataSpeed$firstReach,
+#                           na.rm = TRUE),
+#                       max(FIAinterpDataSpeed$firstReach,
+#                           na.rm=TRUE),length=100)
 
 plot.new()
 with(FIAinterpData,{
@@ -305,9 +232,11 @@ with(FIAinterpData,{
                   col = c(paletteMeans(100)[
                     findInterval(Prob.RV.V,colorbreaksMeans)],
                     rep("black",3)),main="",cex=0.4,
-                  dimnames = c("Resident","Visitor","Absence"),
+                  dimnames =c("Resident","Visitor","Absence")[c(2,3,1)],
+                  dimnames_position = "edge",
                   border = "white",labels = "outside",labels_rot = c(0,0,0),
-                  cex.lab = cex.lab.par,cex.grid = 1,
+                  cex.lab = cex.lab.par,cex.grid = 1,grid_color = "black",
+                  labels_color = "black",
                   numplotx = 2,numploty = 2,idplotx = 1,idploty = 1)
 })
 
@@ -322,9 +251,11 @@ with(na.omit(FIAinterpDataSpeed),{
                   col = c(paletteVar(100)[findInterval(firstReach,
                                                      colorbreaksSpeed)],
                           rep("black",3)),
-                  main="",cex=0.4,dimnames = c("Resident","Visitor","Absence"),
+                  main="",cex=0.4,dimnames = c("Resident","Visitor","Absence")[c(2,3,1)],
+                  dimnames_position = "edge",
                   border = "white",labels = "outside",labels_rot = c(0,0,0),
-                  cex.lab = cex.lab.par,cex.grid = 1,
+                  cex.lab = cex.lab.par,cex.grid = 1,grid_color = "black",
+                  labels_color = "black",
                   numplotx = 2,numploty = 2,idplotx = 1,idploty = 2,new=FALSE);
   # color.bar.aeqp(paletteVar(100),min =round(min(FirstReach),2),
   #           max = round(max(FirstReach),2),nticks = 3,
@@ -340,9 +271,11 @@ with(FIAinterpData.Neg,{
   ternaryplotAEQP(cbind(resProb,visProb,notProb),
                   col = paletteMeans(100)[findInterval(Prob.RV.V,
                                                        colorbreaksMeans)],
-                  main="",dimnames = c("Resident","Visitor","Absence"),
+                  main="",dimnames = c("Resident","Visitor","Absence")[c(2,3,1)],
+                  dimnames_position = "edge",
                   border = "white",labels = "outside",labels_rot = c(0,0,0),
-                  cex.lab = cex.lab.par,cex.grid = 1,cex=0.4,newpage = FALSE,
+                  cex.lab = cex.lab.par,cex.grid = 1,grid_color = "black",
+                  labels_color = "black",newpage = FALSE,
                   numplotx = 2,numploty = 2,idplotx = 2,idploty = 1);
   # color.bar(rgb.palette(100),min =round(min(meanProb),2),max = round(max(meanProb),2),nticks = 5,
   #           title = "Probability of \n V over R",cex.tit = 2)
@@ -353,9 +286,11 @@ with(FIAinterpData.Neg,{
 with(FIAinterpDataSpeed.Neg,{
   ternaryplotAEQP(cbind(resProb,visProb,notProb),
                   col = paletteVar(100)[findInterval(firstReach,colorbreaksSpeed)],
-                  main="",dimnames = c("Resident","Visitor","Absence"),
+                  main="",dimnames =  c("Resident","Visitor","Absence")[c(2,3,1)],
+                  dimnames_position = "edge",
                   border = "white",labels = "outside",labels_rot = c(0,0,0),
-                  cex.lab = cex.lab.par,cex.grid = 1,cex=0.5,
+                  cex.lab = cex.lab.par,cex.grid = 1,grid_color = "black",
+                  labels_color = "black",
                   numplotx = 2,numploty = 2,idplotx = 2,idploty = 2,
                   newpage = FALSE);
   # color.bar(rgb.palette(100),min =round(min(IQR),2),max = round(max(IQR),2),nticks = 3,
@@ -750,3 +685,80 @@ with(tmp3agg[pR==pRrange[3]],{
   plot(logist(ThetaV.mean,ThetaR.mean)~Age,type="l",ylab="",ylim = c(0.3,0.7))
   lines(x = c(0,20000),y = c(0.5,0.5),col="grey")
 })
+
+
+# variation panel -----------------------------------------------------------------------
+
+paletteVar <- colorRampPalette(c('#d8b365','#f5f5f5','#5ab4ac'),alpha=TRUE)
+
+npoints<-100
+
+interpDataVar<-with(stateLastQuarData[Neta==0&Gamma==0.8],
+                    {interp(x=pR,y=pV,
+                            z=Prob.RV.V,
+                            duplicate = "user",
+                            dupfun = {function(x) fivenum(x)[4]-fivenum(x)[2]},
+                            nx=npoints,ny=npoints)})
+bound <-0.8
+
+state.stats<-stateLastQuarData[,.(meanProb=mean(Prob.RV.V),
+                                  upIQR=fivenum(Prob.RV.V)[4],
+                                  lowIQR=fivenum(Prob.RV.V)[2])
+                               ,by=.(Neta,Gamma,resProb,visProb,Outbr)]
+
+
+
+str(interpDataVar)
+
+interpDataVarTrans<-data.table(matrix(0,nrow = npoints*npoints,ncol = 4))
+
+names(interpDataVarTrans)<-c("resProb","visProb","IQR","notProb")
+for (i in 1:npoints) {
+  for (j in 1:npoints) {
+    interpDataVarTrans[(i-1)*npoints+j,resProb:=interpDataVar$x[i]]
+    interpDataVarTrans[(i-1)*npoints+j,visProb:=interpDataVar$y[j]]
+    interpDataVarTrans[(i-1)*npoints+j,IQR:=interpDataVar$z[i,j]]
+  }
+  
+}
+
+interpDataVarTrans[,4]<-1-interpDataVarTrans[,1]-interpDataVarTrans[,2]
+
+interpDataVarTrans<-interpDataVarTrans[resProb+visProb<0.9]
+
+interpDataVar.Neg<-with(stateLastQuarData[Neta==1&Gamma==0],
+                        {interp(x=pR,y=pV,z=Prob.RV.V,
+                                duplicate = "user",
+                                dupfun = 
+                                {function(x) fivenum(x)[4]-fivenum(x)[2]},
+                                nx=npoints,ny=npoints)})
+
+interpDataVarTrans.Neg<-data.table(matrix(0,nrow = npoints*npoints,ncol = 4))
+
+names(interpDataVarTrans.Neg)<-c("resProb","visProb","IQR","notProb")
+for (i in 1:npoints) {
+  for (j in 1:npoints) {
+    interpDataVarTrans.Neg[(i-1)*npoints+j,resProb:=interpDataVar.Neg$x[i]]
+    interpDataVarTrans.Neg[(i-1)*npoints+j,visProb:=interpDataVar.Neg$y[j]]
+    interpDataVarTrans.Neg[(i-1)*npoints+j,IQR:=interpDataVar.Neg$z[i,j]]
+  }
+  
+}
+
+interpDataVarTrans.Neg[,4]<-1-interpDataVarTrans.Neg[,1]-interpDataVarTrans.Neg[,2]
+
+interpDataVarTrans.Neg<-interpDataVarTrans.Neg[resProb+visProb<0.9]
+
+with(state.stats[Neta==1&Gamma==0],{
+  ternaryplot(cbind(pR,pV,notProb),
+              col = paletteVar(100)[findInterval(upIQR-lowIQR,
+                                                 seq(min(upIQR-lowIQR),
+                                                     max(upIQR-lowIQR),
+                                                     length=100))],
+              main="",cex=0.8);
+  color.bar.aeqp(paletteVar(100),min =round(min(upIQR-lowIQR),3),
+                 max = round(max(upIQR-lowIQR),3),
+                 nticks = 3,numplotx = 15,numploty = 8,idplotx =8,idploty = 8)
+})
+
+

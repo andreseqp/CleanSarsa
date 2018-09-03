@@ -2,8 +2,8 @@
 
 # Directories --------------------------------------------------------------
 
-projDir<-"d:/quinonesa/learning_models_c++/actCrit/"
-simsDir<-"s:/quinonesa/Simulations/actCrit/"
+projDir<-"d:/quinonesa/learning_models_c++/Sarsa/"
+simsDir<-"s:/quinonesa/Simulations/Basic_sarsa/"
 
 
 # libraries ----------------------------------------------------------------
@@ -19,12 +19,17 @@ library('plotrix')
 
 # Define data to be loaded 
 
+setwd(simsDir)
+
 (listPar<-c("LeavingP"))
 
 (listVal<-c(""))
 
 FIAlastQuart<-do.call(rbind,lapply(
-  getFilelist(simsDir,listPar,listVal)$FIA,file2lastProp,0.75,'Vlp'))
+  grep("_/FIA",getFilelist(simsDir,listPar,listVal)$FIA,value=TRUE),
+  file2lastProp,0.75,'Vlp'))
+
+FIAlastQuart$Vlp<-rep(c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0,1),each=30*4)
 
 FIA.stats<-FIAlastQuart[,.(meanProb=mean(Prob.RV.V),
                               upIQR=fivenum(Prob.RV.V)[4],
@@ -32,14 +37,14 @@ FIA.stats<-FIAlastQuart[,.(meanProb=mean(Prob.RV.V),
                            ,by=.(Neta,Gamma,pR,pV,Outbr,Vlp)]
 
 
-FIAraw<-loadRawData(simsDir,"FIA",listparam = listPar,values = listVal)
-param<-getParam(simsDir,listparam = listPar,values = listVal)
+# FIAraw<-loadRawData(simsDir,"FIA",listparam = listPar,values = listVal)
+# param<-getParam(simsDir,listparam = listPar,values = listVal)
 
 
-FIAagg<-FIAraw[, as.list(unlist(lapply(.SD, function(x) 
-  list(mean = mean(x),IQ.h = fivenum(x)[4],IQ.l=fivenum(x)[2])))),
-  by=.(Age,Alpha,Gamma,Tau,Neta,Outbr,pR,pV), 
-  .SDcols=c('ThetaV','ThetaR','RV','VV','RR','R0','V0','00_')]
+# FIAagg<-FIAraw[, as.list(unlist(lapply(.SD, function(x) 
+#   list(mean = mean(x),IQ.h = fivenum(x)[4],IQ.l=fivenum(x)[2])))),
+#   by=.(Age,Alpha,Gamma,Tau,Neta,Outbr,pR,pV), 
+#   .SDcols=c('ThetaV','ThetaR','RV','VV','RR','R0','V0','00_')]
 
 setnames(FIAagg,'get',extpar)
 
@@ -50,7 +55,7 @@ FIA.stats[,posit:=ifelse(Gamma==0&Neta==0,0,
                          ifelse(Gamma==0.8&Neta==0,0.01,
                                 ifelse(Gamma==0&Neta==1,0.02,0.03)))]
 
-png("d:/quinonesa/Dropbox/Neuchatel/Figs/Actor_critic/Fig3.png",width = 1200,
+png("d:/quinonesa/Dropbox/Neuchatel/Figs/Sarsa/SupFig3.png",width = 1200,
     height = 1200)
 
 par(plt=posPlot(),las=1)

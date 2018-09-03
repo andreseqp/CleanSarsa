@@ -25,7 +25,7 @@ AbundData2interp<-function(dataAbun,
   # Complementary probability - "absence"
   interpDataTrans[,4]<-1-interpDataTrans[,1]-interpDataTrans[,2]
   # Select relavant data
-  interpDataTrans<-interpDataTrans[resProb+visProb<1]
+  interpDataTrans<-interpDataTrans[resProb+visProb<0.9]
   return(interpDataTrans)
 }
 
