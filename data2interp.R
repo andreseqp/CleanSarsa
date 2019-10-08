@@ -29,6 +29,31 @@ AbundData2interp<-function(dataAbun,
   return(interpDataTrans)
 }
 
+# Function to interpolate abundance vs leaving probability --------------------- 
+
+AbundLeavData2interp<-function(dataAbun,
+                               npoints=100, # size of the interpolations
+                               Var2int ){     # variable to interpolate
+  
+  
+  # interpolate real data
+  interpData<-with(dataAbun,
+                   {interp(x=pA,y=Vlp,z=get(Var2int),duplicate = "mean",
+                           nx=npoints,ny=npoints)})
+  # Create structure to transpose interpolated data
+  interpDataTrans<-data.table(matrix(0,nrow = npoints*npoints,ncol = 3))
+  names(interpDataTrans)<-c("pAbs","VLeavProb",Var2int)
+  # Transpose interpolated data
+  for (i in 1:npoints) {
+    for (j in 1:npoints) {
+      interpDataTrans[(i-1)*npoints+j,pAbs:=interpData$x[i]]
+      interpDataTrans[(i-1)*npoints+j,VLeavProb:=interpData$y[j]]
+      interpDataTrans[(i-1)*npoints+j,eval(Var2int):=interpData$z[i,j]]
+    }
+  }
+  return(interpDataTrans)
+}
+
 
 
 
