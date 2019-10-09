@@ -13,9 +13,9 @@ getFilelist<-# reads de list of files and filters it according to a list of para
            values=NULL # list of values matching the list in 
                       # listparam
            ){
-  posAgen<-c("PIA","FIA","DP")
+  posAgen<-c("PIA","FIA","DP","p1")
   listRaw<-list.files(folder,recursive = TRUE)
-  fullList<-vector("list",3)
+  fullList<-vector("list",4)
   names(fullList)<-posAgen
   if(length(listparam)!=length(values)){
     # parameter and value lists must be the same length
@@ -142,14 +142,15 @@ file2lastDP<-function(filename)
   return(tmpProbsDP)
 }
 
-file2lastProp<-function(filename,prop,outPar=NULL) {
+file2lastProp<-function(filename,prop,outPar=NULL,genfold=NULL) {
   if(length(outPar)>0){
     extPar<-grep(outPar,strsplit(filename,"_/")[[1]],
                  value=TRUE)
     parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
     extPar<-gsub("[[:digit:]]",extPar,replacement = '')
   }
-  tmp<-fread(filename)
+  if(is.null(genfold)) tmp<-fread(here("Simulations",filename))
+  else tmp<-fread(here("Simulations",genfold,filename))
   tmp[,':='(pV=as.numeric(gsub("[[:alpha:]]",
                                grep("pV",
                                     strsplit(filename,"_")[[1]],

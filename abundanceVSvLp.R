@@ -7,8 +7,6 @@ library(here)
 source(here("aesth_par.R"))
 source(here("loadData.R"))
 source(here("..","..","R_files","posPlots.R"))
-source(here("..","..","R_files","vioplot.R"))
-source(here("..","..","R_files",'ternaryAEQP.R'))
 source(here("data2interp.R"))
 library('plotrix')
 library('akima')
@@ -31,17 +29,6 @@ rm(list=ls()[grepl('data.frame', sapply(ls(), function(x) class(get(x))))])
 
 
 # param<-getParam(here("Simulations","AbundLvp"),listparam = listPar,values = listVal)
-
-FIAfirstReach<-do.call(rbind,lapply(
-  getFilelist(here("Simulations","AbundLvp"),listPar,listVal)$FIA,
-                                    loadDataFirstReach,0.7))
-
-FIAfrStats<-FIAfirstReach[,.(firstReach=mean(firstReach),
-                             Prob.RV.V=mean(Prob.RV.V)),
-                          by=.(Neta,Gamma,pR,pV,Outbr)]
-
-FIAfrStats$notProb<-round(1-FIAfrStats$pR-FIAfrStats$pV,1)
-
 
 
 FIAlastQuarData<-do.call(rbind,lapply(
@@ -82,7 +69,7 @@ with(FIA.stats[Neta==0&Gamma==0.8],{
   plot((1-pA),Vlp,col = paletteMeans(100)[findInterval(meanProb,seq(min(meanProb),
                                                               max(meanProb),
                                                               length=100))],
-            main="",cex=0.8,pch=20,xlab="Cleaner abundance",
+            main="",cex=1.5,pch=20,xlab="Cleaner abundance",
        ylab="Visitor leaving probability");
   # color.bar.aeqp(paletteMeans(100),min =round(min(meanProb),2),
   #           max = round(max(meanProb),2),nticks = 5,numplotx = 5,numploty = 3,
@@ -95,7 +82,7 @@ with(FIA.stats[Neta==1&Gamma==0],{
   plot((1-pA),Vlp,col = paletteMeans(100)[findInterval(meanProb,seq(min(meanProb),
                                                                     max(meanProb),
                                                                     length=100))],
-       main="",cex=0.8,pch=20,xlab="Cleaner abundance",
+       main="",cex=1.5,pch=20,xlab="Cleaner abundance",
        ylab="",yaxt="n");
   color.bar.aeqp(paletteMeans(100),min =round(min(meanProb),2),
                  max = round(max(meanProb),2),nticks = 5,numplotx = 10,numploty = 1,
@@ -111,7 +98,7 @@ dev.off()
 png(here("Simulations","AbundLvp_","levelPlotInterp.png"),
     width = 1000 , height = 700)
 
-colorbreaksMeans<-seq(0.45,1,length=100)
+colorbreaksMeans<-seq(0.45,0.75,length=100)
 
 plot.new()
 par(plt=c(posPlot(numplotx = 5,idplotx = 1)[1],
@@ -119,9 +106,7 @@ par(plt=c(posPlot(numplotx = 5,idplotx = 1)[1],
 with(FIAinterpData,{
   plot((1-pAbs),VLeavProb,
               col = paletteMeans(100)[findInterval(Prob.RV.V,
-                                                   seq(min(Prob.RV.V),
-                                                       max(Prob.RV.V),
-                                                       length=100))],
+                                                   colorbreaksMeans)],
               main="",cex=1,cex.lab = 2,pch=20,
        xlab="Cleaner abundance",
        ylab="Visitor leaving probability")
@@ -140,9 +125,7 @@ par(plt=c(posPlot(numplotx = 5,idplotx = 3)[1],
 with(FIAinterpData.Neg,{
   plot((1-pAbs),VLeavProb,
               col = paletteMeans(100)[findInterval(Prob.RV.V,
-                                                   seq(min(Prob.RV.V),
-                                                       max(Prob.RV.V),
-                                                       length=100))],
+                                                   colorbreaksMeans)],
               main="",cex=1,cex.lab = 2,pch=20,xlab="Cleaner abundance",
        ylab="",yaxt="n");
   
