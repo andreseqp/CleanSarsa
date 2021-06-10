@@ -11,24 +11,21 @@ fileName<-"parameters.json"
 
 #test<-fromJSON(paste(codedir,"\\test.json",sep=""))
 
-param<-list(totRounds=20000,ResReward=10,VisReward=10,ResProb=0.2,VisProb=0.2,
-            ResProbLeav=0,VisProbLeav=1,negativeRew=-10,experiment=FALSE,
-            inbr=0,outbr=0,trainingRep=30,forRat=0.0,
-            alphaT=0.01,printGen=1,seed=1, gammaRange=c(0,0.8),
-            tauRange=c(5,10),netaRange=c(0,0.5),
-            folder=simsDir)
+scenario<-"AbundLvpTauRang"
 
 param<-list(totRounds=20000,ResReward=1,VisReward=1,
             ResProb=c(0.2),
             VisProb=c(0.2),
             ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
-            inbr=0,outbr=0,trainingRep=30,forRat=0.0,
-            alphaT=0.01,printGen=1,seed=1, gammaRange=c(0,0.8),
-            tauRange=c(1),netaRange=c(0,1),alphaThRange=c(0.01),
-            folderL=paste0(here("Simulations"),"AbundLvp/"))
+            inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+            propfullPrint = 0.7,
+            alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0,0.8),
+            tauRange=c(0.5,1,2),netaRange=c(0,1),alphaThRange=c(0.01),
+            folderL=paste0(here("Simulations"),scenario,"_/"))
 
 clustfolder="/hpcfs/home/a.quinones/CleanSarsa/AbundLvp_/"
 
+clustfolderNeu<-paste0("/home/ubuntu/SARSA/",scenario,"_/")
 
 
 check_create.dir<-function(folder,param,values){
@@ -53,20 +50,22 @@ check_create.dir<-function(folder,param,values){
   }
 }
 
-rangLeav<-seq(0,1,by = 0.1)
+rangLeav<-seq(0,0.3,length.out = 9)
 rangAbund<-seq(0.1,0.9,length=9)
 
-check_create.dir(here("Simulations"),param = rep("AbundLvp",1),
+check_create.dir(here("Simulations"),param = rep(scenario,1),
                  values = c(""))
 
-listfolders<-check_create.dir(here("Simulations","AbundLvp_",sep=""),
-                                    param = rep("Vlp",10),
+listfolders<-check_create.dir(here("Simulations",paste0(scenario,"_")),
+                                    param = rep("Vlp",length(rangLeav)),
                               values = rangLeav)
 
-for (i in 1:10) {
-  for(j in 1:9){
-    param$folderL<-paste0(here("Simulations","AbundLvp_",listfolders[i]),"/")
-    param$folder<-paste0(clustfolder,listfolders[i],"/")
+for (i in 1:length(rangLeav)) {
+  for(j in 1:length(rangAbund)){
+    # if(i==11) param$printGen<-1
+    # else param$printGen<-1000
+    param$folderL<-paste0(here("Simulations",paste0(scenario,"_"),listfolders[i]),"/")
+    param$folder<-paste0(clustfolderNeu,listfolders[i],"/")
     param$ResProb<-c((1-rangAbund[j])/2)
     param$VisProb<-c((1-rangAbund[j])/2)
     param$VisProbLeav<-rangLeav[i]
@@ -83,13 +82,13 @@ for (i in 1:10) {
       # ans<-readline("Want to continue?")
       # if(substr(ans, 1, 1) == "y"){
         write(outParam,paste(param$folderL,fileName,sep = ""))
-        jobfile(param$folderL,listfolders[i],jobid = j)
+        # jobfile(param$folderL,listfolders[i],jobid = j)
       # }
     }
   }
   else{
-    write(outParam,paste(param$folderL,fileName,sep = "/"))
-    jobfile(param$folderL,listfolders[i],jobid = j)
+    write(outParam,paste(param$folderL,fileName,sep = ""))
+    # jobfile(param$folderL,listfolders[i],jobid = j)
   }
   # system(paste(exedir,
   #   gsub("\\","/",paste(simsDir,listfolders[i],fileName,sep="\\"),fixed=TRUE)

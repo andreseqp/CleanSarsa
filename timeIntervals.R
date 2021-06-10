@@ -1,12 +1,12 @@
 # --------------------------------- Time intervals -------------------------------------------------#
-
-projDir<-"d:/quinonesa/learning_models_c++/Sarsa/"
-simsDir<-"s:/quinonesa/Simulations/Basic_sarsa/"
+library(here)
+projDir<-here()
+simsDir<-"e:/NeuchSims/SARSA/AbundLvpTau0.5_/"
 
 # libraries ---------------------------------------------------------------------------------------
-source('d:/quinonesa/Dropbox/R_files/posPlots.R')
-source(paste(projDir,"aesth_par.R",sep=""))
-source(paste(projDir,"loadData.R",sep = ""))
+source(here("..",'/R_files/posPlots.R'))
+source(paste(projDir,"/aesth_par.R",sep=""))
+source(paste(projDir,"/loadData.R",sep = ""))
 library('plotrix')
 
 # Load Data ---------------------------------------------------------------------------------------
@@ -14,20 +14,20 @@ library('plotrix')
 
 # Define data to be loaded 
 
-(listPar<-rep("BaseLine",1))
-(listVal<-c(""))
+(listPar<-c("pR","pV"))
+(listVal<-c("0.2","0.2"))
 (param<-getParam(simsDir,listparam = listPar,values = listVal))
 
 #diffJsons(param[1],param[3])
 
-list.files(simsDir,recursive = TRUE,pattern = "Olle_/")
+tail(list.files(simsDir,recursive = TRUE,pattern = ""),100)
 
 interv<-1001
 
 # Load interval data for FIA from the raw data
 FIAtimeInt<-do.call(
   rbind,lapply(
-    getFilelist(simsDir,listPar,listVal)$FIA,
+    getFilelist(simsDir,listPar,listVal)$FIA[41:44],
     file2timeInter,interV=interv))
 
 
@@ -37,7 +37,7 @@ FIAtimeInt<-do.call(
 # getFilelist(simsDir,listPar,listVal)$FIA
 
 # FIAtimeInt<-do.call(
-#   rbind,lapply(getFilelist(projDir,listPar,listVal)$FIA,fread))
+  # rbind,lapply(getFilelist(projDir,listPar,listVal)$FIA,fread))
 
 
 
@@ -66,7 +66,7 @@ DPdataProb<-do.call(rbind,
 
 # extpar<-listPar[1]
 
-FIAIntstats<-FIAtimeInt[Alpha==0.005,.(meanProb=mean(Prob.RV.V),
+FIAIntstats<-FIAtimeInt[,.(meanProb=mean(Prob.RV.V),
                            upIQR=fivenum(Prob.RV.V)[4],
                            lowIQR=fivenum(Prob.RV.V)[2])
                         ,by=.(Interv,Neta,Outbr,Tau,Gamma)]
@@ -88,8 +88,8 @@ PIAIntstats[,posit:=ifelse(Gamma==0&Neta==0,0,
                                   ifelse(Gamma==0&Neta==1,0.2,0.3)))]
 
 
-png(filename = "d:/quinonesa/Dropbox/Neuchatel/Figs/Sarsa/FigSup1.png",
-    width = 1600,height = 800)
+# png(filename = "d:/quinonesa/Dropbox/Neuchatel/Figs/Sarsa/FigSup1.png",
+    # width = 1600,height = 800)
 
 par(plt=posPlot(numplotx = 2,idplotx = 1),yaxt='s',las=1)
 with(FIAIntstats,{
@@ -99,7 +99,7 @@ with(FIAIntstats,{
          col=colboxes[ifelse(Gamma==0.8,
                              ifelse(Neta==1,1,2),
                              ifelse(Neta==1,3,4))],
-         sfrac=0.002,cex.axis=1.3,ylim=c(0.4,1))
+         sfrac=0.002,cex.axis=1.3,ylim=c(0,1))
   mtext(side = 2,text = "frequency of V over R",las=0,cex=2,line=4)
   lines(x=c(0,max(Interv)),y=c(0.5,0.5),col='grey')
   text(x=par('usr')[2]*0.1,y=par('usr')[3]+0.9*(par('usr')[4]-par('usr')[3]),

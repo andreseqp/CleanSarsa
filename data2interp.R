@@ -33,13 +33,13 @@ AbundData2interp<-function(dataAbun,
 
 AbundLeavData2interp<-function(dataAbun,
                                npoints=100, # size of the interpolations
-                               Var2int ){     # variable to interpolate
+                               Var2int ,linearI=TRUE){     # variable to interpolate
   
   
   # interpolate real data
   interpData<-with(dataAbun,
                    {interp(x=pA,y=Vlp,z=get(Var2int),duplicate = "mean",
-                           nx=npoints,ny=npoints)})
+                           nx=npoints,ny=npoints,linear=linearI)})
   # Create structure to transpose interpolated data
   interpDataTrans<-data.table(matrix(0,nrow = npoints*npoints,ncol = 3))
   names(interpDataTrans)<-c("pAbs","VLeavProb",Var2int)

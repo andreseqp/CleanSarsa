@@ -10,11 +10,12 @@ getFilelist<-# reads de list of files and filters it according to a list of para
   function(folder, # folder where the files are
            listparam=NULL, # list strings providing the parameters 
                            #of interest
-           values=NULL # list of values matching the list in 
+           values=NULL, # list of values matching the list in 
                       # listparam
+           fullNam=FALSE # Boolean. Append full path name
            ){
   posAgen<-c("PIA","FIA","DP","p1")
-  listRaw<-list.files(folder,recursive = TRUE)
+  listRaw<-list.files(folder,recursive = TRUE,full.names = fullNam)
   fullList<-vector("list",4)
   names(fullList)<-posAgen
   if(length(listparam)!=length(values)){
@@ -142,14 +143,16 @@ file2lastDP<-function(filename)
   return(tmpProbsDP)
 }
 
-file2lastProp<-function(filename,prop,outPar=NULL,genfold=NULL) {
+file2lastProp<-function(filename,prop,outPar=NULL,genfold=NULL,full.path=FALSE) {
   if(length(outPar)>0){
     extPar<-grep(outPar,strsplit(filename,"_/")[[1]],
                  value=TRUE)
     parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
     extPar<-gsub("[[:digit:]]",extPar,replacement = '')
   }
-  if(is.null(genfold)) tmp<-fread(here("Simulations",filename))
+  if(is.null(genfold)) 
+    if(full.path)   tmp<-fread(filename)
+    else tmp<-fread(here("Simulations",filename))
   else tmp<-fread(here("Simulations",genfold,filename))
   tmp[,':='(pV=as.numeric(gsub("[[:alpha:]]",
                                grep("pV",
