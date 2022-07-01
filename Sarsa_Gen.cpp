@@ -49,6 +49,7 @@ Last edit date:
 #include "../Cpp/json.hpp"
 // Header for reading and using JSON files see https://github.com/nlohmann/json
 
+#include "Client.h" 
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
@@ -59,75 +60,81 @@ using json = nlohmann::json;
 
 // Classes
 
-enum client { resident, visitor, absence };																		
-// clients can be resident, visitors, or be absent
 enum learPar { alphaPar, gammaPar, tauPar, netaPar };
 
 class agent													// Learning agent
 {
 public:
 	agent();												// basic contructor
-	agent(double alphaI, double gammaI, double tauI, double netaI);
+	agent(double alphaI, double gammaI, double tauI, double netaI,
+		int _numSti, int _numFeat, double initVal);
 	// constructor providing values for the learning parameters
 	~agent();																
 	// destructor not really necessary
-	void update();
+	void update(int attenMech=0);
 	// function that updates the value of state-action pairs according to 
 	//current reward and estimates of future values
-	void act(client newOptions[], int &idNewOptions, double &VisProbLeav, 
-		double &ResProbLeav, double &VisReward, double &ResReward, double &inbr, 
-		double &outbr, double &negativeRew, bool &experiment);
+	void act(client newOptions[], int &idNewOptions, nlohmann::json param,
+		rnd::discrete_distribution visitSpProb,
+		rnd::discrete_distribution residSpProb);
 		// function where the agent takes the action, gets reward, see new 
 		//state and chooses future action
-	void printIndData(ofstream &learnSeries, int &seed, double &outbr);		
+	void printIndData(ofstream &learnSeries, int seed, json &param);
 	// prints individual data from the learning process
 	double getLearnPar(learPar parameter);
 	// function to access the learning parameters
 	void checkChoice();
 	// Check that the choice taken is among one of the options, 
 	//otherwise trigger an error
-	void rebirth();																								
+	void rebirth(double initVal);																								
 	// Function to reset private variables in an individual
-	void getNewOptions(client newOptions[], int &idNewOptions, 
-		double &VisProbLeav, double &ResProbLeav, double &negativeRew, 
-		double &inbr, double &outbr, bool &experiment);
+	void getNewOptions(client newOptions[], int &idNewOptions,
+		nlohmann::json param, rnd::discrete_distribution visitSpProb,
+		rnd::discrete_distribution residSpProb);
 	// Function to get new clients in the station, when in a natural environment
-	void getExternalOptions(client newOptions[], int &idNewOptions, 
-		double &inbr, double &outbr);		
+	void getExternalOptions(client newOptions[], int &idNewOptions,
+		nlohmann::json param,
+		rnd::discrete_distribution visitSpProb,
+		rnd::discrete_distribution residSpProb);
+	// After unattended clinets leave or stay, get new clients
 	// After unattended clients leave or stay, get new clients
-	void getExperimentalOptions();
+	void getExperimentalOptions(nlohmann::json param,
+		rnd::discrete_distribution visitSpProb,
+		rnd::discrete_distribution residSpProb);
 	// Get new clients in the experimental setting
-	void ObtainReward(double &ResReward, double &VisReward);
+	void ObtainReward();
 	// Get reward
 	double softMax(double &value1, double &value2);
 	// Calculate probability of taken a given action
-	void DPupdate(double probRes, double probVis, double &VisProbLeav,
-		double &ResProbLeav, double &outbr, double &ResReward, 
-		double &VisReward, double &negReward, ofstream &DPdata, bool &experiment);
-	// Obtain expected values from a Dynamic programing algorithm
-	int mapOptionsDP(client options[], int &choice);			
+		
 	// default function that maps state action pairs to indexes in the array 
 	//'values' where values are stored works for DPupdate and for 
 	//state-action pair NOT for action estimation
 	void forget(double forRat);
 	// Forgetting function: stochastic change in the estimated values
-	void printDPData(ofstream &DPdata, double &oubr, int &time);
 	client cleanOptionsT[2];	// current cleaning options time = t
 	client cleanOptionsT1[2];	// future cleaning options  time = t+1
-	virtual void choice(int &StaAct1, int &StaAct2)=0;
-	// Function to make a choice
-	virtual int mapOptions(client options[], int &choice)=0;
+	virtual void value() = 0;
+	// Calculates the value estimation for the current state
+	virtual void choice() = 0;
 	// function that maps state action pairs to indexes in the array 'values' 
 	//where values are stored
-	int numEst;
+	int numSti, numFeat;
 	// Number of estimates characterizing bhavioural options 9 for FIA
+	// Calculate new \alpha (associability) for each stimuli
+	void updateAlpha(int idAplha, double lambda, int attenMech);
 protected:
-	double values[9];																							
-	// array storing the estimated values of state action pairs
-	double DPbackup[9];		
-	int DPid;
+	double values[10][5];																							
+	// array storing the estimated values of different features
+	double alphas[10];
+	// array storing the speed of learning for different stimuli dimentions
+	double delta;
 	int choiceT;// current choice 
 	int choiceT1;// future choice
+	double valuesT[2];
+	// value estimated for current state
+	double valuesT1[2];
+	// value estimated for future state state
 	double alpha;// speed of learning
 	double gamma;// importance of future rewards
 	double tau;	// level of explorative behaviour. 
@@ -144,490 +151,363 @@ protected:
 
 agent::agent()			// basic constructor
 {
-	numEst = 9;
-	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
+	numSti = 10;
+	for (int i = 0; i < numSti;++i) {
+		for (auto j : values[i])	j = 0;
+		alphas[i] = 0.01;
+	}
 	alpha = 0.01, gamma = 0.5, tau = 10;								
 	// Default values
-	neta = 0;
-	cleanOptionsT[0] = absence, cleanOptionsT[1] = absence, choiceT = 0;
-	cleanOptionsT1[0] = absence, cleanOptionsT1[1] = absence, choiceT1 = 0;
+	neta = 0,	delta = 0;
+	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
+	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
 	currentReward = 0, cumulReward = 0;
 	age = 0;
 }
 
-agent::agent(double alphaI, double gammaI, double tauI, double netaI)
-// parameterized constructor
-{
-	numEst = 9;
-	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
-	//values[4] = 10, values[2] = 10;
+agent::agent(double alphaI, double gammaI, double tauI, double netaI,
+	int _numSti,int _numFeat,double initVal = 0){
+  // parameterized constructor
+	numSti = _numSti, numFeat = _numFeat;
+	for (int i=0; i < numSti;++i) {
+		for (int j = 0; j < numFeat; ++j)	values[i][j] = initVal;
+		alphas[i] = alphaI	;
+	}
 	alpha = alphaI, gamma = gammaI, tau = tauI;
 	neta = netaI;
-	cleanOptionsT[0] = absence, cleanOptionsT[1] = absence, choiceT = 0;
-	cleanOptionsT1[0] = absence, cleanOptionsT1[1] = absence, choiceT1 = 0;
+	delta = 0;
+	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
+	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
 	currentReward = 0, cumulReward = 0;
 	age = 0;
 }
 
-void agent::rebirth()
-{
+void agent::rebirth(double initVal = 0){
 	age = 0;
-	cleanOptionsT[0] = absence, cleanOptionsT[1] = absence;
-	cleanOptionsT1[0] = absence, cleanOptionsT1[1] = absence;
-	choiceT = 0, choiceT1 = 0;
+	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
+	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
 	currentReward = 0;
 	cumulReward = 0;
-	for (int i = 0; i < numEst; i++) { values[i] = 0, DPbackup[i]=0; }
+	for (int i=0; i < numSti; ++i) {
+		for (int j = 0; j < numFeat; ++j)	 values[i][j] = initVal;
+		alphas[i] = alpha;
+	}
 }
 
 agent::~agent() {}		// Destructor
 
-void agent::checkChoice()
-{
-	if (choiceT > 1 )
-	{
+void agent::checkChoice(){
+	if (choiceT > 1 )	{
 		error("agent::act", "choice is not among the options");
 	}
 }
 
-double agent::getLearnPar(learPar parameter)
-{
+double agent::getLearnPar(learPar parameter){
 	if (parameter == alphaPar) { return alpha; }
 	else if (parameter == gammaPar) { return gamma; }
 	else if (parameter == tauPar) {return tau; }
 	else { return neta; }
 }
 
-void agent::ObtainReward(double &ResReward, double &VisReward)
-{
-	if (cleanOptionsT[choiceT] == resident) { 
-		currentReward = ResReward, cumulReward += ResReward; 
-	}					// Obtain reward if the choice is a resident
-	else if (cleanOptionsT[choiceT] == visitor) { 
-		currentReward = VisReward, cumulReward += VisReward; 
-	}					// Obtain reward if the choice is a visitor
-	else { currentReward = 0, cumulReward += 0; }
-	// No reward if there is no client in the choice
+void agent::ObtainReward() {
+	currentReward = cleanOptionsT[choiceT].reward;
+	cumulReward += cleanOptionsT[choiceT].reward;
 }
 
-void agent::getNewOptions(client newOptions[], int &idNewOptions, 
-	double &VisProbLeav, double &ResProbLeav, double &negativeRew, 
-	double &inbr, double &outbr, bool &experiment)
-{
-	if (choiceT == 0)		// Define the behaviour of the unattended client
-	{
-		if (cleanOptionsT[1] == resident)
-		{
-			if (rnd::uniform() > ResProbLeav) { 
-				cleanOptionsT1[0] = cleanOptionsT[1], negReward = 0; 
-			}								
-			// if the unttended client is a resident, it leaves with probability ResPropLeave
-			else { negReward = negativeRew; }
-		}
-		else if (cleanOptionsT[1] == visitor)
-		{
-			if (rnd::uniform() > VisProbLeav) { 
-				cleanOptionsT1[0] = cleanOptionsT[1], negReward = 0; 
+void agent::getNewOptions(client newOptions[], int &idNewOptions,
+	nlohmann::json param, rnd::discrete_distribution visitSpProb,
+	rnd::discrete_distribution residSpProb) {
+	if (choiceT == 0) {
+		// Define the behaviour of the unattended client
+		if (cleanOptionsT[1].mytype == resident) {
+			if (rnd::uniform() > param["ResProbLeav"].get<double>()) {
+				// if the unttended client is a resident, 
+				// it leaves with probability ResPropLeave
+				cleanOptionsT1[1] = cleanOptionsT[1], negReward = 0;
 			}
-			// if the unttended client is a visitor, it leaves with probability VisPropLeave
-			else { negReward = negativeRew; }
+			else { negReward = param["negativeRew"].get<double>(); }
+		}
+		else if (cleanOptionsT[1].mytype == visitor) {
+			if (rnd::uniform() > param["VisProbLeav"].get<double>()) {
+				// if the unttended client is a visitor, 
+				// it leaves with probability VisPropLeave
+				cleanOptionsT1[1] = cleanOptionsT[1], negReward = 0;
+			}
+			else { negReward = param["negativeRew"].get<double>(); }
 		}
 		else { negReward = 0; }
 	}
-	else
-	{
-		if (cleanOptionsT[0] == resident)
-		{
-			if (rnd::uniform() > ResProbLeav) { 
-				cleanOptionsT1[0] = cleanOptionsT[0], negReward = 0; 
-			}	
-			// if the unattended client is a resident, it leaves with probability ResPropLeave
-			else { negReward = negativeRew; }
+	else {
+		if (cleanOptionsT[0].mytype == resident) {
+			if (rnd::uniform() > param["ResProbLeav"].get<double>()) {
+				// if the unattended client is a resident, 
+				// it leaves with probability ResPropLeave
+				cleanOptionsT1[0] = cleanOptionsT[0], negReward = 0;
+			}
+			else { negReward = param["negativeRew"].get<double>(); }
 		}
-		else if (cleanOptionsT[0] == visitor)
-		{
-			if (rnd::uniform() > VisProbLeav) { 
-				cleanOptionsT1[0] = cleanOptionsT[0], negReward = 0; }
-			// if the unattended client is a visitor, it leaves with probability VisPropLeave
-			else { negReward = negativeRew; }
+		else if (cleanOptionsT[0].mytype == visitor) {
+			if (rnd::uniform() > param["VisProbLeav"].get<double>()) {
+				// if the unattended client is a visitor, 
+				// it leaves with probability VisPropLeave
+				cleanOptionsT1[0] = cleanOptionsT[0], negReward = 0;
+			}
+			else { negReward = param["negativeRew"].get<double>(); }
 		}
 		else { negReward = 0; }
 	}
-	if (experiment) { getExperimentalOptions(); }
-	else { getExternalOptions(newOptions, idNewOptions, inbr, outbr); }
+	if (param["experiment"].get<bool>()) {
+		getExperimentalOptions(param,
+			visitSpProb, residSpProb);
+	}
+	else {
+		getExternalOptions(newOptions, idNewOptions, param,
+			visitSpProb, residSpProb);
+	}
 }
 
-void agent::getExternalOptions(client newOptions[], int &idNewOptions, 
-	double &inbr, double &outbr)
-{
-	if (cleanOptionsT1[0] == absence){
+void agent::getExternalOptions(client newOptions[], int &idNewOptions,
+	nlohmann::json param, rnd::discrete_distribution visitSpProb,
+	rnd::discrete_distribution residSpProb) {
+	if (cleanOptionsT1[0].mytype + cleanOptionsT1[1].mytype > 3) {
 		// If none of the clients stayed from the previous interaction
-		cleanOptionsT1[0] = newOptions[idNewOptions], ++idNewOptions;
-		if (cleanOptionsT1[0] == absence){
+		bool randPos = rnd::bernoulli();
+		cleanOptionsT1[randPos] = newOptions[idNewOptions];
+		++idNewOptions;
+		if (cleanOptionsT1[randPos].mytype == absence) {
 			// If the first draw does not yield a client
-			cleanOptionsT1[1] = newOptions[idNewOptions], ++idNewOptions;
+			cleanOptionsT1[!randPos] = newOptions[idNewOptions], ++idNewOptions;
 			return;
 		}
 	}
-	if (cleanOptionsT1[0] != absence){
-		// Fill the second option depending on the first option
-		double probs[3] = { (1 - inbr)*(1 - outbr) + inbr*outbr , 0, 0 };	
+
+	if (cleanOptionsT1[0].mytype + cleanOptionsT1[1].mytype < 4) {
+		// There is a client in the stations
+		// Fill the alternative option depending on the available one
+		bool filledPos = cleanOptionsT1[1].mytype != absence;
+		double probs[3] = { (1 - static_cast<double>(param["inbr"]))*
+			(1 - static_cast<double>(param["outbr"])) +
+			static_cast<double>(param["inbr"])*
+			static_cast<double>(param["outbr"]) , 0, 0 };
 		// Define probabilities depending on parameters
-		probs[1] = probs[0] + inbr*(1 - outbr);
+		probs[1] = probs[0] + static_cast<double>(param["inbr"])*
+			(1 - static_cast<double>(param["outbr"]));
 		// First prob is of a random option	
-		probs[2] = probs[1] + outbr*(1 - inbr);	
+		probs[2] = probs[1] + static_cast<double>(param["outbr"])*
+			(1 - static_cast<double>(param["inbr"]));
 		// Second and third homophily, and heterophily respectively
-		if (probs[2] != 1) error("agent:getExternalOptions", 
-			"probability does not sum up to 1");
+		if (probs[2] != 1) {
+			error("agent:getExternalOptions",
+				"probability does not sum up to 1");
+		}
 		double rand = rnd::uniform();
-		if (probs[0] > rand) {	
-			cleanOptionsT1[1] = newOptions[idNewOptions], ++idNewOptions;
-		}						// Random
-		else if (probs[1] > rand)	cleanOptionsT1[1] = cleanOptionsT1[0];												
-								// homophily
-		else					// heterophily
-		{
-			if (cleanOptionsT1[0] == resident) { cleanOptionsT1[1] = visitor; }
-			else { cleanOptionsT1[1] = resident; }
+		if (probs[0] > rand) {
+			cleanOptionsT1[!filledPos] = newOptions[idNewOptions];
+			++idNewOptions;
+		}
+		else if (probs[1] > rand) {
+			if (cleanOptionsT1[1].mytype == resident) {
+				// homophily
+				std::string chosenSp = "Sp";
+				chosenSp.append(itos(residSpProb.sample() + 1));
+				cleanOptionsT1[!filledPos].rebirth(resident,
+					param["residents"][chosenSp]["alphas"],
+					param["residents"][chosenSp]["betas"],
+					param["residents"][chosenSp]["reward"], chosenSp);
+			}
+			else {
+				std::string chosenSp = "Sp";
+				chosenSp.append(itos(residSpProb.sample() + 1));
+				cleanOptionsT1[!filledPos].rebirth(visitor,
+					param["residents"][chosenSp]["alphas"],
+					param["residents"][chosenSp]["betas"],
+					param["residents"][chosenSp]["reward"], chosenSp);
+			}
+		}
+		else {
+			// heterophily
+			if (cleanOptionsT1[0].mytype == resident) {
+				std::string chosenSp = "Sp";
+				chosenSp.append(itos(visitSpProb.sample() + 1));
+				cleanOptionsT1[!filledPos].rebirth(visitor,
+					param["residents"][chosenSp]["alphas"],
+					param["residents"][chosenSp]["betas"],
+					param["residents"][chosenSp]["reward"], chosenSp);
+			}
+			else {
+				std::string chosenSp = "Sp";
+				chosenSp.append(itos(residSpProb.sample() + 1));
+				cleanOptionsT1[!filledPos].rebirth(resident,
+					param["residents"][chosenSp]["alphas"],
+					param["residents"][chosenSp]["betas"],
+					param["residents"][chosenSp]["reward"], chosenSp);
+			}
 		}
 	}
 }
 
-void agent::getExperimentalOptions() {
-// Get new options in an experimental setting
-	if (cleanOptionsT[0] == resident && cleanOptionsT[1] == visitor) {
-		return;	
-	}	// Every other option is a Resident-Visitor
-	else
-	{
-		cleanOptionsT1[0] = resident;
-		cleanOptionsT1[1] = visitor;
+void agent::getExperimentalOptions(nlohmann::json param,
+	rnd::discrete_distribution visitSpProb,
+	rnd::discrete_distribution residSpProb) {
+	// Get new options in an experimental setting
+	if (cleanOptionsT[0].mytype == resident &&
+		cleanOptionsT[1].mytype == visitor) {
+		return;
+	}
+	// Every other option is a Resident-Visitor
+	else {
+		std::string chosenSp = "Sp";
+		chosenSp.append(itos(residSpProb.sample() + 1));
+		cleanOptionsT1[0].rebirth(resident,
+			param["residents"][chosenSp]["alphas"],
+			param["residents"][chosenSp]["betas"],
+			param["residents"][chosenSp]["reward"], chosenSp);
+		chosenSp = "Sp";
+		chosenSp.append(itos(visitSpProb.sample() + 1));
+		cleanOptionsT1[1].rebirth(visitor,
+			param["residents"][chosenSp]["alphas"],
+			param["residents"][chosenSp]["betas"],
+			param["residents"][chosenSp]["reward"], chosenSp);
 		return;
 	}
 }
-
-void agent::act(client newOptions[], int &idNewOptions, double &VisProbLeav, 
-	double &ResProbLeav, double &VisReward, double &ResReward, double &inbr,
-	double &outbr, double &negativeRew, bool &experiment){
-	// taking action, obatining reward, seeing new state, choosing future action
-	int StaAct1, StaAct2;
-	++age;																		
+void agent::act(client newOptions[], int &idNewOptions,
+	nlohmann::json param,
+	rnd::discrete_distribution visitSpProb,
+	rnd::discrete_distribution residSpProb) {
+	// taking action, obtaining reward, seeing new state, choosing future action
+	++age;
 	// new time step
 	cleanOptionsT[0] = cleanOptionsT1[0], cleanOptionsT[1] = cleanOptionsT1[1];
 	// Future state becomes current state
 	choiceT = choiceT1;
 	// Future action becomes current action
-	checkChoice();	
+	valuesT[0] = valuesT1[0], valuesT[1] = valuesT1[1] ;
+	checkChoice();
 	// Check that the choice is among the options
-	cleanOptionsT1[0] = absence, cleanOptionsT1[1] = absence;
-	// Future state is unknown
+	cleanOptionsT1[0].rebirth();
+	cleanOptionsT1[1].rebirth();
+	// Future state is unknown: only the first parameters matters for this function. 
 	choiceT1 = 2;
-	ObtainReward(VisReward,ResReward);
-	getNewOptions(newOptions, idNewOptions, VisProbLeav, ResProbLeav, 
-		negativeRew, inbr, outbr,experiment);
-	choiceT1 = 0;															
-	// Look into the value of state action pair if option 1 is chosen
-	StaAct1 = mapOptions(cleanOptionsT1, choiceT1);
-	choiceT1 = 1;								
-	// Look into the value of state action pair if option 1 is chosen
-	StaAct2 = mapOptions(cleanOptionsT1, choiceT1);
-	choice(StaAct1, StaAct2);
+	ObtainReward();
+	getNewOptions(newOptions, idNewOptions, param, visitSpProb, residSpProb);
+	value();
+ 	choice();
 }
 
-void agent::update(){																								
+void agent::update(int attenMech){
 	// change estimated value according to current reward and estimates of future state-action pair
-	int currentStAct = mapOptions(cleanOptionsT, choiceT);
-	int nextStAct = mapOptions(cleanOptionsT1, choiceT1);
-	values[currentStAct] += alpha*(currentReward + 
-		negReward*neta + gamma*values[nextStAct] - values[currentStAct]);
+	double lambda;
+	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
+	delta = lambda - valuesT[choiceT];
+	for (int countStim = 0; countStim < numSti;++countStim) {
+		values[countStim][cleanOptionsT[choiceT].features[countStim]] =
+			alphas[countStim] * delta;
+	}
+	for (int countStim = 0; countStim < numSti; ++countStim) {
+		updateAlpha(countStim,lambda,attenMech);
+	}
 }
 
-void agent::forget(double forRat)
-{
-	int tmpAct = rnd::integer(numEst);
-	values[tmpAct] += rnd::normal(0, forRat);
+void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
+  // implementation of mechanism of selective attention. Changes in
+  // the speed of learning (\alpha)
+  switch (attenMech)	{
+  case 0: // No mechanism for selective atention
+    break;
+  case 1:
+     alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT] + 
+		 values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]) -
+        //alphas[0] = alpha*(abs(lambda - values[1]) -
+        abs(lambda- values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
+      clip_low(alphas[0], 0);
+	  if (isnan(alphas[0])) {
+		  wait_for_return();
+	  }
+    // attention (associability) increases for good predictors
+    // Based on @mackintosh_Theory_1975
+    break;
+  case 2:
+    alphas[idAlpha] = alpha*abs(lambda - 
+		values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
+      if (isnan(alphas[0])) {
+        wait_for_return();
+      }
+    //alphas[currState] = ;// attention increases with prediction error
+    // Based on @pearce_Model_1980
+    break;
+  case 3:
+    alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT]) -
+			//alphas[0] = alpha*(abs(lambda - values[1]) -
+			abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
+    clip_low(alphas[0], 0);
+     if (isnan(alphas[0])) {
+        wait_for_return();
+     }
+    // attention (associability) increases for good predictors
+    // Based on @mackintosh_Theory_1975
+    break;
+  default:
+    break;
+  }
 }
 
-void agent::printIndData(ofstream &learnSeries, int &seed, double &outbr)
-{
+
+void agent::forget(double forRat) {
+	for (int i=0; i < numSti;++i) {
+		for (int j=0; j < numFeat; ++j) {
+			if (j != cleanOptionsT[choiceT].features[i])
+				values[i][j] -= forRat;
+		}
+	}
+}
+
+void agent::printIndData(ofstream &learnSeries, int seed, json &param) {
 	learnSeries << seed << '\t' << age << '\t';
-	//cout << seed << '\t' << age << '\t';
 	learnSeries << alpha << '\t' << gamma << '\t' << tau << '\t' << neta << '\t';
-	learnSeries << outbr << '\t';
-	learnSeries << cleanOptionsT[0] << '\t' << cleanOptionsT[1] << '\t';
-	learnSeries << cleanOptionsT[choiceT] << '\t';
-	//cout << cleanOptionsT[0] << '\t' << cleanOptionsT[1] << '\t' << choiceT << '\t';
+	learnSeries << cleanOptionsT[0].mytype << '\t' << cleanOptionsT[1].mytype << '\t';
+	learnSeries << cleanOptionsT[choiceT].mytype << '\t';
 	learnSeries << currentReward << '\t' << cumulReward << '\t' << negReward << '\t';
-	//cout << currentReward << '\t' << cumulReward << '\t';
-	for (int j = 0; j < numEst; j++)
-	{
+	for (int j = 0; j < numSti; j++){
 		learnSeries << values[j] << '\t';
-		//cout << values[j] << '\t';
+	  learnSeries << alphas[j] << '\t';
 	}
 	learnSeries << endl;
-	//cout << endl;
 }
 
-void agent::printDPData(ofstream &DPdata, double &outbr, int &time)	{							
-	// Print the outcome of the DP estimation
-	DPdata << time << '\t';
-	DPdata << alpha << '\t' << gamma << '\t' << tau << '\t' << neta << '\t';
-	DPdata << outbr << '\t';
-	for (int j = 0; j < 9; j++)
-	{
-		DPdata << DPbackup[j] << '\t';
-		//cout << values[j] << '\t';
-	}
-	DPdata << endl;
-	//cout << endl;
-}
 
-double agent::softMax(double &value1, double &value2)
-{
+double agent::softMax(double &value1, double &value2) {
 	double prob1 = (exp(value1 / tau)) / (exp(value1 / tau) + exp(value2 / tau));
 	// Calculate probability of chosing option 1
 	return(prob1);
 }
 
-int agent::mapOptionsDP(client options[], int &choice){
 
-	int stateAction;
-	if (options[0] == absence || options[1] == absence)	{
-		// One of the options is empty
-		if (options[0] == resident || options[1] == resident){					
-		// the other one is a resident
-			if (options[choice] == resident) { stateAction = 4; } // State = R0 , action = R		
-			else { stateAction = 5; }					// State = R0 , action = 0		
-		}
-		else if (options[0] == visitor || options[1] == visitor){
-			// the other one is a resident
-			if (options[choice] == visitor) { stateAction = 2; } 
-			// State = V0 , action = V
-			else { stateAction = 3; }
-			// State = V0 , action = 0
-		}
-		else { stateAction = 8; }				
-		// State = 00 , action = 0		// the other one is empty too
-	}
-	else if (options[0] == resident || options[1] == resident){
-		// Both options have clients and one of them is a resident
-		if (options[0] == visitor || options[1] == visitor){
-			// the other one is a visitor
-			if (options[choice] == resident) { stateAction = 1; }
-			// State = RV , action = R		
-			else { stateAction = 0; }	
-			// State = RV , action = V
-		}
-		else { stateAction = 7; }		// State = RR , action = R		
-	}
-	else { stateAction = 6; }			 // State = VV , action = V
-	return stateAction;
-}
-void agent::DPupdate(double probRes, double probVis, double &VisProbLeav, 
-	double &ResProbLeav, double &outbr, double &ResReward, double &VisReward, 
-	double &negativeRew, ofstream &DPdata,bool &experiment){
-// Expected value according to DP algorithm
-	double transProb[9] = {0,0,0,0,0,0,0,0,0};	// Transition probabilities
-	double sum; 
-	double rewards[9] = {VisReward*(1-neta)+neta*ResProbLeav*negativeRew,			//0
-						ResReward*(1-neta)+neta*VisProbLeav*negativeRew,			//1
-						VisReward*(1-neta),											//2
-						neta*VisProbLeav*negativeRew,								//3
-						ResReward*(1-neta),											//4
-						neta*ResProbLeav*negativeRew,								//5
-						VisReward*(1 - neta) + neta*VisProbLeav*negativeRew,		//6
-						ResReward*(1 - neta) + neta*ResProbLeav*negativeRew,		//7
-						0};															//8
-	if (experiment)     // In an experimental setting
-	{
-		for (int k = 0; k < 1000; k++)
-		{
-			for (int i = 0; i < 9; i++)
-			{
-				DPid = i;//DPid = mapOptionsDP(cleanOptionsT, choiceT);
-				if (DPid == 0)
-				{
-					transProb[0] = 0;
-					transProb[1] = 0;
-					transProb[2] = 0;
-					transProb[3] = 0;
-					transProb[4] = softMax(DPbackup[4], DPbackup[5])*(1-ResProbLeav);
-					transProb[5] = softMax(DPbackup[5], DPbackup[4])*(1 - ResProbLeav);
-					transProb[6] = 0;
-					transProb[7] = 0;
-					transProb[8] = ResProbLeav;
-				}
-				else if (DPid == 1)
-				{
-					transProb[0] = 0;
-					transProb[1] = 0;
-					transProb[2] = softMax(DPbackup[2], DPbackup[3])*(1 - VisProbLeav);
-					transProb[3] = softMax(DPbackup[3], DPbackup[2])*(1 - VisProbLeav);
-					transProb[4] = 0;
-					transProb[5] = 0;
-					transProb[6] = 0;
-					transProb[7] = 0;
-					transProb[8] = VisProbLeav;
-				}
-				else
-				{
-					transProb[0] = softMax(DPbackup[0], DPbackup[1]);
-					transProb[1] = softMax(DPbackup[1], DPbackup[0]);
-					transProb[2] = 0;
-					transProb[3] = 0;
-					transProb[4] = 0;
-					transProb[5] = 0;
-					transProb[6] = 0;
-					transProb[7] = 0;
-					transProb[8] = 0;
-				}
-				sum = 0;
-				for (int j = 0; j < 9; j++)
-				{
-					sum += transProb[j] * (rewards[DPid] + gamma*DPbackup[j]);
-				}
-				DPbackup[DPid] = sum;
-			}
-			printDPData(DPdata, outbr, k);
-		}
-	}
-	else{						// In a natural setting
-		for (int k = 0; k < 1000; k++){
-			for (int i = 0; i < 9; i++){
-				DPid = i;//DPid = mapOptionsDP(cleanOptionsT, choiceT);
-				if (DPid == 0 || DPid == 5 || DPid == 7){
-					transProb[0] = softMax(DPbackup[0], DPbackup[1])*
-						((1 - ResProbLeav)*(probVis*(1 - outbr) + outbr) + 
-						ResProbLeav * (2 * probRes*probVis*(1 - outbr) + 
-						outbr*(probVis + probRes)));
-					transProb[1] = softMax(DPbackup[1], DPbackup[0])*
-						((1 - ResProbLeav)*(probVis*(1 - outbr) + outbr) + 
-						ResProbLeav * (2 * probRes*probVis*(1 - outbr) + 
-						outbr*(probVis + probRes)));
-					transProb[2] = softMax(DPbackup[2], DPbackup[3])*
-						ResProbLeav * probVis*(1 - probRes - probVis)*(2 - outbr);
-					transProb[3] = softMax(DPbackup[3], DPbackup[2])*
-						ResProbLeav * probVis*(1 - probRes - probVis)*(2 - outbr);
-					transProb[4] = softMax(DPbackup[4], DPbackup[5])*
-						((1 - ResProbLeav)*(1 - probRes - probVis)*(1 - outbr) 
-						+ ResProbLeav * (1 - probRes - probVis)*probRes*(2 - outbr));
-					transProb[5] = softMax(DPbackup[5], DPbackup[4])*
-						((1 - ResProbLeav)*(1 - probRes - probVis)*(1 - outbr) 
-						+ ResProbLeav * (1 - probRes - probVis)*probRes*(2 - outbr));
-					transProb[6] = ResProbLeav*pow(probVis, 2)*(1-outbr);
-					transProb[7] = ((1 - ResProbLeav)*probRes + 
-						ResProbLeav*pow(probRes, 2))*(1-outbr);
-					transProb[8] = ResProbLeav*pow((1 - probRes - probVis), 2);
-				}
-				else if (DPid == 1 || DPid == 3 || DPid == 6){
-					transProb[0] = softMax(DPbackup[0], DPbackup[1])*
-						((1 - VisProbLeav)*(probRes*(1 - outbr) + outbr) + 
-						VisProbLeav * (2 * probRes*probVis*(1 - outbr) + 
-						outbr*(probVis + probRes)));
-					transProb[1] = softMax(DPbackup[1], DPbackup[0])*
-						((1 - VisProbLeav)*(probRes*(1 - outbr) + outbr) + 
-						VisProbLeav * (2 * probRes*probVis*(1 - outbr) + 
-						outbr*(probVis + probRes)));
-					transProb[2] = softMax(DPbackup[2], DPbackup[3])*
-						((1 - VisProbLeav)*(1 - probRes - probVis)*(1 - outbr) 
-						+ VisProbLeav * probVis*(1 - probRes - probVis)*(2 - outbr));
-					transProb[3] = softMax(DPbackup[3], DPbackup[2])*
-						((1 - VisProbLeav)*(1 - probRes - probVis)*(1 - outbr) 
-						+ VisProbLeav * probVis*(1 - probRes - probVis)*(2 - outbr));
-					transProb[4] = softMax(DPbackup[4], DPbackup[5])*
-						VisProbLeav * (1 - probRes - probVis)*probRes*(2 - outbr);
-					transProb[5] = softMax(DPbackup[5], DPbackup[4])
-						*VisProbLeav * (1 - probRes - probVis)*probRes*(2 - outbr);
-					transProb[6] = ((1 - VisProbLeav)*probVis + 
-						VisProbLeav*pow(probVis, 2))*(1 - outbr);
-					transProb[7] = VisProbLeav*pow(probRes, 2)*(1 - outbr);
-					transProb[8] = VisProbLeav*pow((1 - probRes - probVis), 2);
-				}
-				else{
-					transProb[0] = softMax(DPbackup[0], DPbackup[1]) * 
-						(2 * probRes*probVis*(1 - outbr) + 
-							outbr*(probVis + probRes));
-					transProb[1] = softMax(DPbackup[1], DPbackup[0]) * 
-						(2 * probRes*probVis*(1 - outbr) + 
-							outbr*(probVis + probRes));
-					transProb[2] = softMax(DPbackup[2], DPbackup[3]) * 
-						probVis*(1 - probRes - probVis)*(2 - outbr);
-					transProb[3] = softMax(DPbackup[3], DPbackup[2]) * 
-						probVis*(1 - probRes - probVis)*(2 - outbr);
-					transProb[4] = softMax(DPbackup[4], DPbackup[5]) * 
-						(1 - probRes - probVis) * probRes*(2 - outbr);
-					transProb[5] = softMax(DPbackup[5], DPbackup[4]) * 
-						(1 - probRes - probVis) * probRes*(2 - outbr);
-					transProb[6] = pow(probVis, 2)*(1 - outbr);
-					transProb[7] = pow(probRes, 2)*(1 - outbr);
-					transProb[8] = pow((1 - probRes - probVis), 2);
-				}
-				sum = 0;
-				for (int j = 0; j < 9; j++){
-					sum +=  transProb[j] * (rewards[DPid] + gamma*DPbackup[j]);
-				}
-				DPbackup[DPid] = sum;
-			}
-			printDPData(DPdata, outbr, k);
-		}
-	}
-}
-
-class FIATyp1 :public agent{			// Fully Informed Agent (FIA)			
-	public:
-	FIATyp1(double alphaI, double gammaI, double tauI, double netaI)
-		:agent(alphaI, gammaI, tauI, netaI){
-	}
-	virtual void choice(int &StaAct1, int &StaAct2){
-		if (cleanOptionsT1[0] != absence && cleanOptionsT1[1] != absence){
-			// if there are no absences, then use desicion rule
-			double tautemp = getLearnPar(tauPar);
-			if (rnd::uniform() < softMax(values[StaAct1], values[StaAct2])){
-				choiceT1 = 0;
-			}
-			else { choiceT1 = 1; }
-		}
-		else if (cleanOptionsT1[0] == absence){										
-			// if there is an absence, then chose the other option
-			choiceT1 = 1;
-		}
-		else{
-			choiceT1 = 0;
-		}
-	}
-	//virtual void choice(int &StaAct1, int &StaAct2)
-	//{
-	//	double tautemp = getLearnPar(tauPar);
-	//	if (rnd::uniform() < softMax(values[StaAct1],values[StaAct2]))
-	//	{ choiceT1= 0; }
-	//	else { choiceT1 = 1; }
-	//}	
-	virtual int mapOptions(client options[], int &choice){
-		return(mapOptionsDP(options, choice));
-	}
-};
 
 class PIATyp1 :public agent{				// Partially Informed Agent (PIA)	
 	public:
-	PIATyp1(double alphaI, double gammaI, double tauI, double netaI)
-	:agent(alphaI, gammaI, tauI, netaI){
-		numEst = 3;
+	PIATyp1(double alphaI, double gammaI, double tauI, double netaI,
+		int _numSti, int _numFeat, double initVal=0)
+	:agent(alphaI, gammaI, tauI, netaI,_numSti,_numFeat){
+		numSti = _numSti;
 	}
-	virtual void choice(int &StaAct1, int &StaAct2){
-		if (cleanOptionsT1[0] != absence && cleanOptionsT1[1] != absence){												
-			// if there are no absences, then use desicion rule
-			if (rnd::uniform() < softMax(values[StaAct1], values[StaAct2])){
+	virtual void rebirth_a(double initVal=0) {
+	    rebirth(initVal);
+	}
+	virtual void value() {
+		valuesT1[0] = 0, valuesT1[1] = 0;
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			valuesT1[0] += values[countStim][cleanOptionsT1[0].features[countStim]];
+			valuesT1[1] += values[countStim][cleanOptionsT1[1].features[countStim]];
+		}
+	}
+	virtual void choice(){
+		choiceT1 = rnd::bernoulli(softMax(valuesT1[0], valuesT1[1]));
+		/*if (rnd::uniform() < softMax(valuesT1[0], valuesT1[1])){
 				choiceT1 = 0;
 			}
 			else { choiceT1 = 1; }
-		}
-		else if (cleanOptionsT1[0] == absence){																		
-			// if there is an absence, then chose the other option
-			choiceT1 = 1;
-		}
-		else{
-			choiceT1 = 0;
-		}
+		}*/
 	}
 	/*virtual void choice(int &StaAct1, int &StaAct2)
 	{
@@ -637,25 +517,53 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 		}
 		else { choiceT1 = 1; }
 	}*/
-	int mapOptions(client options[], int &choice){ 
-		if (options[choice] == resident) { return (0); }
-		else if (options[choice] == visitor) { return(1); }
-		else { return(2); }
-		return(options[choice]); 
-	}
 };
 
 // Functions external to the agent
 
-void draw(client trainingSet[], int rounds, double probRes, double probVis){					
-	// In a natural setting draw clients according to their abundance
-	double cumProbs[3] = { probRes, probRes + probVis, 1 };
+rnd::discrete_distribution clientProbs(json param, string clientType) {
+	int numSps = param[clientType].size();
+	rnd::discrete_distribution SpProb(numSps);
+	for (json::iterator itSpClient = param[clientType].begin();
+		itSpClient != param[clientType].end(); ++itSpClient) {
+		SpProb[distance(param[clientType].begin(), itSpClient)] =
+			itSpClient->at("relAbun");
+	}
+	return (SpProb);
+}
+
+void draw(client trainingSet[], json param,
+	rnd::discrete_distribution visitSpProb,
+	rnd::discrete_distribution residSpProb) {
+	double cumProbs[3] = { param["ResProb"].get<double>(),
+		(param["ResProb"].get<double>() +
+			param["VisProb"].get<double>()),	1 };
 	double rndNum;
-	for (int i = 0; i < rounds * 2; i++){
+	json::iterator itSpsVis = param["visitors"].begin();
+	json::iterator itSpsRes = param["residents"].begin();
+	for (int i = 0; i < param["totRounds"].get<int>() * 2; i++) {
 		rndNum = rnd::uniform();
-		if (rndNum < cumProbs[0]) { trainingSet[i] = resident; }
-		else if (rndNum < cumProbs[1]) { trainingSet[i] = visitor; }
-		else { trainingSet[i] = absence; }
+		if (rndNum < cumProbs[0]) {
+			string chosenSp = "Sp";
+			chosenSp.append(itos(residSpProb.sample() + 1));
+			trainingSet[i] = client(resident,
+				param["residents"][chosenSp]["alphas"],
+				param["residents"][chosenSp]["betas"],
+				param["residents"][chosenSp]["reward"], chosenSp,
+				int(param["numFeat"]));
+		}
+		else if (rndNum < cumProbs[1]) {
+			string chosenSp = "Sp";
+			chosenSp.append(itos(visitSpProb.sample() + 1));
+			trainingSet[i] = client(visitor, 
+				param["residents"][chosenSp]["alphas"],
+				param["residents"][chosenSp]["betas"],
+				param["residents"][chosenSp]["reward"], chosenSp,
+				int(param["numFeat"]));
+		}
+		else {
+			trainingSet[i] = client();
+		}
 	}
 }
 
@@ -717,7 +625,7 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
 		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
 
-		if (learner.numEst > 3) {
+		if (learner.numSti > 3) {
 			indOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t';
 			indOutput << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t';
 			indOutput << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
@@ -734,74 +642,84 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 int main(int argc, char* argv[])
 {
 	mark_time(1);
-	// Read parameters
-	ifstream input(argv[1]);
-	if (input.fail()) { cout << "JSON file failed" << endl; }
-	json param = nlohmann::json::parse(input);
+
+	// Hardwire parameter values:
+	// Only for debugging 
+
+	// input parameters provided by a JSON file with the following
+	// structure:
+
+	json param;
+	param["totRounds"] = 2000;
+	param["ResReward"] = 1;
+	param["VisReward"] = param["ResReward"];
+	param["ResProb"] =  0.3;
+	param["VisProb"] =  0.3;
+	param["ResProbLeav"] = 0;
+	param["VisProbLeav"] = 1;
+	param["negativeRew"] = -1;
+	param["experiment"] = false;
+	param["inbr"] = 0.0;
+	param["outbr"] = 0;
+	param["trainingRep"] = 30;//30
+	param["alphaT"] = 0.01;
+	param["numlearn"] = 1;
+	param["printGen"] = 1;
+	param["netaRange"] = { 0 };
+	param["gammaRange"] = { 0 };
+	param["tauRange"] = { 10 };
+	param["seed"] = 9;
+	param["forRat"] = 0.0;
+	param["numSti"] = 2;
+	param["numFeat"] = 2;
+	param["propfullPrint"] = 0.8;
+	param["folder"]       = "M:/Projects/CleanSarsa/Simulations/test_/";
+	param["visitors"]["Sp1"]["alphas"] = { 1, 1 };
+	param["visitors"]["Sp1"]["betas"] = { 1, 1 };
+	param["visitors"]["Sp1"]["relAbun"] = 1;
+	param["visitors"]["Sp1"]["reward"] = { 1, 0 };
+	param["residents"]["Sp1"]["alphas"] = { 1,1 };
+	param["residents"]["Sp1"]["betas"] = { 1,1 };
+	param["residents"]["Sp1"]["relAbun"] = 1;
+	param["residents"]["Sp1"]["reward"] = { 1, 0 };
 	
-	// Pass on parameters from JSON to c++
-	int const totRounds = param["totRounds"];
-	double ResReward = param["ResReward"];
-	double VisReward = param["VisReward"];
-	double ResProbLeav = param["ResProbLeav"];
-	double VisProbLeav = param["VisProbLeav"];
-	double negativeRew = param["negativeRew"];
-	bool experiment = param["experiment"];
-	double inbr = param["inbr"];
-	double outbr = param["outbr"];
-	int trainingRep = param["trainingRep"];
-	double alphaT = param["alphaT"];
-	const int numlearn = param["numlearn"];
-	int printGen = param["printGen"];
-	double propfullPrint = param["propfullPrint"];
-	int seed = param["seed"];
-	double forRat = param["forRat"];
 
-	/*int const totRounds = 30000;
-	double ResReward = 10;
-	double VisReward = ResReward;
-	double ResProb = 0.2;
-	double VisProb = ResProb;
-	double ResProbLeav = 0;
-	double VisProbLeav = 1;
-	double negativeRew = -10;
-	bool experiment = 0;
-	double inbr = 0.0;
-	double outbr = 0;
-	int const trainingRep = 30;//30
-	double alphaT = 0.01;
-	const int numlearn = 2;
-	int printGen =	1;
-	int seed = 9;
-	double forRat = 0.0;
 
-	double resProbRang[8] = { 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8};
+	// Read parameters
+	//ifstream input(argv[1]);
+	//if (input.fail()) { cout << "JSON file failed" << endl; }
+	//json param = nlohmann::json::parse(input);
+	//
+	//// Pass on parameters from JSON to c++
+	//int const totRounds = param["totRounds"];
+	//double ResReward = param["ResReward"];
+	//double VisReward = param["VisReward"];
+	//double ResProbLeav = param["ResProbLeav"];
+	//double VisProbLeav = param["VisProbLeav"];
+	//double negativeRew = param["negativeRew"];
+	//bool experiment = param["experiment"];
+	//double inbr = param["inbr"];
+	//double outbr = param["outbr"];
+	//int trainingRep = param["trainingRep"];
+	//double alphaT = param["alphaT"];
+	//int numlearn = param["numlearn"];
+	//int printGen = param["printGen"];
+	//double propfullPrint = param["propfullPrint"];
+	//int seed = param["seed"];
+	//double forRat = param["forRat"];
 
-	double visProbRang[8] = { 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8 };
+	
 
-	double outbrRang[2] = { 0.0 };
-
-	double visProbLeavRang[5] = { 0.1, 0.25, 0.5 ,0.75 , 1 };
-
-	double gammaT;
-
-	double gammaRange[3] = { 0.8 };
-
-	double tauT;
-
-	double tauRange[1] = { 10};
-
-	double netaT;
-
-	double netaRange[1] = { 0.5 };*/
-
-	rnd::set_seed(seed);
+		
+	rnd::set_seed(param["seed"].get<int>());
+	rnd::discrete_distribution residSpProbs = clientProbs(param, "residents");
+	rnd::discrete_distribution visitSpProbs = clientProbs(param, "visitors");
 
 	client *clientSet;
-	clientSet = new client[totRounds * 2];
+	clientSet = new client[param["totRounds"].get<int>() * 2];
 	int idClientSet;
 
-	agent *learners[numlearn];
+	agent *learners[2];
 	for (json::iterator itVisProb = param["VisProb"].begin();
 		itVisProb != param["VisProb"].end(); ++itVisProb) {
 		for (json::iterator itResProb = param["ResProb"].begin();
@@ -817,34 +735,32 @@ int main(int argc, char* argv[])
 
 						for (json::iterator itt = param["tauRange"].begin();
 							itt != param["tauRange"].end(); ++itt) {
-
-							learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
-							learners[1] = new PIATyp1(alphaT, *itg, *itt, *itn);
+							//learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
+							learners[0] = new PIATyp1(
+								param["alphaT"], *itg, *itt, *itn,
+								param["numSti"], param["numFeat"]);
 							ofstream printTest;
 							//ofstream DPprint;
 
-							for (int k = 0; k < numlearn; ++k)
+							for (int k = 0; k < int(param["numlearn"]); ++k)
 							{
 								initializeIndFile(printTest, *learners[k],
 									param, 0, *itVisProb, *itResProb);
-								for (int i = 0; i < trainingRep; i++)
-								{
-									draw(clientSet, totRounds, *itResProb, *itVisProb);
+								for (int i = 0; i < int(param["trainingRep"]); i++){
 									idClientSet = 0;
-									for (int j = 0; j < totRounds; j++)
-									{
-										learners[k]->act(clientSet, idClientSet,
-											VisProbLeav, ResProbLeav, VisReward, ResReward,
-											inbr, outbr, negativeRew, experiment);
+									draw(clientSet,param, visitSpProbs,
+										residSpProbs);
+									for (int j = 0; j < int(param["totRounds"]); j++){
+										learners[k]->act(clientSet, idClientSet, param,
+											visitSpProbs, residSpProbs);
 										learners[k]->update();
-										learners[k]->forget(forRat);
-										if (j > totRounds*propfullPrint)
-										{
-											learners[k]->printIndData(printTest, i, outbr);
+										learners[k]->forget(double(param["forRat"]));
+										if (j > int(param["totRounds"])*param["propfullPrint"]){
+											learners[k]->printIndData(
+												printTest,i,param);
 										}
-										else if (j%printGen == 0)
-										{
-											learners[k]->printIndData(printTest, i, outbr);
+										else if (j%int(param["printGen"]) == 0){									learners[k]->printIndData(
+												printTest,i, param);
 										}
 									}
 									learners[k]->rebirth();
