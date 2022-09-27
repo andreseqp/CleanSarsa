@@ -107,7 +107,7 @@ file2timeInter<-function(filename,interV,maxAge=-2){
     (tmp$Client1==0 & tmp$Client2==1)
   tmptimeInter<-
     tmp[fullRVoptions==TRUE,.(Prob.RV.V=mean(Choice)),
-      by=.(Interv=floor(Age/interV),Training,Alpha,Gamma,Tau,Neta,Outbr)]
+      by=.(Interv=floor(Age/interV),Training,Alpha,Gamma,Tau,Neta)]
   if(length(extPar)>0){
     tmptimeInter[,eval(extPar):=parVal]
   }
@@ -208,4 +208,52 @@ loadDataFirstReach<-function(filename,bound){
                  by=.(Training,Gamma,Neta,pR,pV,Outbr)]
   return(tmpFirstR)
 }
+
+
+# Density fucntion for the beta-binomial distribution
+dbb <- function(x, N, u, v, log = FALSE) {
+  logval <- lbeta(x+u, N-x+v) - lbeta(u,v) + lchoose(N,x)
+  if (log) {
+    ret <- logval
+  } else {
+    ret <- exp(logval)
+  }
+  ret
+}
+
+## Random numbers from the beta binomial distribution
+rbb <- function(n, N, u, v) {
+  p <- rbeta(n, u, v)
+  rbinom(n, N, p)
+}
+
+
+## Function to check if new directories already exist---------------------------
+check_create.dir<-function(folder,param,values){
+  setwd(folder)
+  listfolders<-paste(param,values,"_",sep = "")  
+  currFolders<-lapply(listfolders,dir.exists)
+  if(sum(currFolders>0)){
+    warning("At least one of the folders already exists \n Please check",
+            immediate. = TRUE)
+    print(cbind(listfolders,currFolders))
+    ans<-readline("Want to continue?")
+    if(substr(ans, 1, 1) == "y"){
+      lapply(listfolders,dir.create)
+      here()
+      return(listfolders)
+    }
+    else{
+      here()
+      return(listfolders)
+    }
+  }else{
+    lapply(listfolders,dir.create)
+    here()
+    return(listfolders)
+  }
+}
+
+
+
 

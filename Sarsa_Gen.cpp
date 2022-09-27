@@ -161,6 +161,7 @@ agent::agent()			// basic constructor
 	neta = 0,	delta = 0;
 	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
 	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
+	valuesT1[0] = 0, valuesT1[1] = 0;
 	currentReward = 0, cumulReward = 0;
 	age = 0;
 }
@@ -170,7 +171,7 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI,
   // parameterized constructor
 	numSti = _numSti, numFeat = _numFeat;
 	for (int i=0; i < numSti;++i) {
-		for (int j = 0; j < numFeat; ++j)	values[i][j] = initVal;
+		for (int j = 0; j < numFeat+1; ++j)	values[i][j] = initVal;
 		alphas[i] = alphaI	;
 	}
 	alpha = alphaI, gamma = gammaI, tau = tauI;
@@ -178,6 +179,7 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI,
 	delta = 0;
 	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
 	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
+	valuesT1[0] = 0, valuesT1[1] = 0;
 	currentReward = 0, cumulReward = 0;
 	age = 0;
 }
@@ -186,10 +188,11 @@ void agent::rebirth(double initVal = 0){
 	age = 0;
 	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
 	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
+	valuesT1[0] = 0, valuesT1[1] = 0;
 	currentReward = 0;
 	cumulReward = 0;
 	for (int i=0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat; ++j)	 values[i][j] = initVal;
+		for (int j = 0; j < numFeat+1; ++j)	 values[i][j] = initVal;
 		alphas[i] = alpha;
 	}
 }
@@ -401,7 +404,7 @@ void agent::update(int attenMech){
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
 	delta = lambda - valuesT[choiceT];
 	for (int countStim = 0; countStim < numSti;++countStim) {
-		values[countStim][cleanOptionsT[choiceT].features[countStim]] =
+		values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
 			alphas[countStim] * delta;
 	}
 	for (int countStim = 0; countStim < numSti; ++countStim) {
@@ -412,27 +415,29 @@ void agent::update(int attenMech){
 void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
   // implementation of mechanism of selective attention. Changes in
   // the speed of learning (\alpha)
-  switch (attenMech)	{
-  case 0: // No mechanism for selective atention
-    break;
-  case 1:
-     alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT] + 
-		 values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]) -
-        //alphas[0] = alpha*(abs(lambda - values[1]) -
-        abs(lambda- values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
-      clip_low(alphas[0], 0);
-	  if (isnan(alphas[0])) {
+	double deltaTemp;
+	switch (attenMech)	{
+		case 0: // No mechanism for selective atention
+			break;
+	case 1:
+	  deltaTemp = abs(lambda - valuesT[choiceT] +
+		  values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]) -
+		  //alphas[0] = alpha*(abs(lambda - values[1]) -
+		  abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
+	  if (deltaTemp != 0) alphas[idAlpha] = alpha*deltaTemp;
+      clip_low(alphas[idAlpha], 0);
+	  if (isnan(alphas[idAlpha])) {
 		  wait_for_return();
 	  }
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
-    break;
-  case 2:
-    alphas[idAlpha] = alpha*abs(lambda - 
+		break;
+	case 2:
+	alphas[idAlpha] = alpha*abs(lambda - 
 		values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
-      if (isnan(alphas[0])) {
-        wait_for_return();
-      }
+	if (isnan(alphas[idAlpha])) {
+		wait_for_return();
+	}
     //alphas[currState] = ;// attention increases with prediction error
     // Based on @pearce_Model_1980
     break;
@@ -440,8 +445,8 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
     alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT]) -
 			//alphas[0] = alpha*(abs(lambda - values[1]) -
 			abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
-    clip_low(alphas[0], 0);
-     if (isnan(alphas[0])) {
+    clip_low(alphas[idAlpha], 0);
+     if (isnan(alphas[idAlpha])) {
         wait_for_return();
      }
     // attention (associability) increases for good predictors
@@ -465,12 +470,15 @@ void agent::forget(double forRat) {
 void agent::printIndData(ofstream &learnSeries, int seed, json &param) {
 	learnSeries << seed << '\t' << age << '\t';
 	learnSeries << alpha << '\t' << gamma << '\t' << tau << '\t' << neta << '\t';
-	learnSeries << cleanOptionsT[0].mytype << '\t' << cleanOptionsT[1].mytype << '\t';
+	learnSeries << cleanOptionsT[0].mytype << '\t';
+	for (int i = 0; i < numSti; ++i) learnSeries << cleanOptionsT[0].features[i] << '\t';
+	learnSeries << cleanOptionsT[1].mytype << '\t';
+	for (int i = 0; i < numSti; ++i) learnSeries << cleanOptionsT[1].features[i] << '\t';
 	learnSeries << cleanOptionsT[choiceT].mytype << '\t';
 	learnSeries << currentReward << '\t' << cumulReward << '\t' << negReward << '\t';
 	for (int j = 0; j < numSti; j++){
-		learnSeries << values[j] << '\t';
-	  learnSeries << alphas[j] << '\t';
+		for (int k = 0; k < numFeat + 1; ++k) learnSeries << values[j][k] << '\t';
+		learnSeries << alphas[j] << '\t';
 	}
 	learnSeries << endl;
 }
@@ -502,7 +510,7 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 		}
 	}
 	virtual void choice(){
-		choiceT1 = rnd::bernoulli(softMax(valuesT1[0], valuesT1[1]));
+		choiceT1 = rnd::bernoulli(softMax(valuesT1[1], valuesT1[0]));
 		/*if (rnd::uniform() < softMax(valuesT1[0], valuesT1[1])){
 				choiceT1 = 0;
 			}
@@ -556,9 +564,9 @@ void draw(client trainingSet[], json param,
 			string chosenSp = "Sp";
 			chosenSp.append(itos(visitSpProb.sample() + 1));
 			trainingSet[i] = client(visitor, 
-				param["residents"][chosenSp]["alphas"],
-				param["residents"][chosenSp]["betas"],
-				param["residents"][chosenSp]["reward"], chosenSp,
+				param["visitors"][chosenSp]["alphas"],
+				param["visitors"][chosenSp]["betas"],
+				param["visitors"][chosenSp]["reward"], chosenSp,
 				int(param["numFeat"]));
 		}
 		else {
@@ -601,7 +609,7 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 	}
 	else{
 		folder = typeid(learner).name();
-		folder.erase(0, 1).append("_");
+		folder.erase(0, 6).append("_");
 		cout << folder << '\t' << learner.getLearnPar(alphaPar) << '\t';
 		cout << learner.getLearnPar(gammaPar) << '\t';
 		cout << learner.getLearnPar(tauPar) << '\t';
@@ -621,18 +629,18 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 	else {
 		indOutput << "Training" << '\t' << "Age" << '\t' << "Alpha" << '\t';
 		indOutput << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t';
-		indOutput << "Outbr" << '\t' << "Client1" << '\t' << "Client2" << '\t';
+		indOutput <<  "Client1" << '\t';
+		for (int k = 0; k < param["numSti"]; ++k)
+			indOutput << "Stim1." + itos(k) << '\t';
+		indOutput << "Client2" << '\t';
+		for (int k = 0; k < param["numSti"]; ++k)
+			indOutput << "Stim2." + itos(k) << '\t';
 		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
 		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
-
-		if (learner.numSti > 3) {
-			indOutput << "RV.V" << '\t' << "RV.R" << '\t' << "V0.V" << '\t';
-			indOutput << "V0.0" << '\t' << "R0.R" << '\t' << "R0.0" << '\t';
-			indOutput << "VV.V" << '\t' << "RR.R" << '\t' << "OO.O" << '\t';
-		}
-		else {
-			indOutput << "Resident" << '\t' << "Visitor" << '\t';
-			indOutput << "Absence" << '\t';
+		for (int i=0; i< param["numSti"];++i){
+			for (int j = 0; j < param["numFeat"] + 1; ++j)
+				indOutput << "Val." + itos(i) + itos(j) << "\t";
+			indOutput << "alpha." + itos(i) << "\t";
 		}
 		indOutput << endl;
 	}
@@ -649,46 +657,47 @@ int main(int argc, char* argv[])
 	// input parameters provided by a JSON file with the following
 	// structure:
 
-	json param;
-	param["totRounds"] = 2000;
-	param["ResReward"] = 1;
-	param["VisReward"] = param["ResReward"];
-	param["ResProb"] =  0.3;
-	param["VisProb"] =  0.3;
-	param["ResProbLeav"] = 0;
-	param["VisProbLeav"] = 1;
-	param["negativeRew"] = -1;
-	param["experiment"] = false;
-	param["inbr"] = 0.0;
-	param["outbr"] = 0;
-	param["trainingRep"] = 30;//30
-	param["alphaT"] = 0.01;
-	param["numlearn"] = 1;
-	param["printGen"] = 1;
-	param["netaRange"] = { 0 };
-	param["gammaRange"] = { 0 };
-	param["tauRange"] = { 10 };
-	param["seed"] = 9;
-	param["forRat"] = 0.0;
-	param["numSti"] = 2;
-	param["numFeat"] = 2;
-	param["propfullPrint"] = 0.8;
-	param["folder"]       = "M:/Projects/CleanSarsa/Simulations/test_/";
-	param["visitors"]["Sp1"]["alphas"] = { 1, 1 };
-	param["visitors"]["Sp1"]["betas"] = { 1, 1 };
-	param["visitors"]["Sp1"]["relAbun"] = 1;
-	param["visitors"]["Sp1"]["reward"] = { 1, 0 };
-	param["residents"]["Sp1"]["alphas"] = { 1,1 };
-	param["residents"]["Sp1"]["betas"] = { 1,1 };
-	param["residents"]["Sp1"]["relAbun"] = 1;
-	param["residents"]["Sp1"]["reward"] = { 1, 0 };
+	//json param;
+	//param["totRounds"] = 20000;
+	//param["ResReward"] = 1;
+	//param["VisReward"] = param["ResReward"];
+	//param["ResProb"] =  0.3;
+	//param["VisProb"] =  0.3;
+	//param["ResProbLeav"] = 1;
+	//param["VisProbLeav"] = 1;
+	//param["negativeRew"] = -1;
+	//param["experiment"] = false;
+	//param["inbr"] = 0.0;
+	//param["outbr"] = 0;
+	//param["trainingRep"] = 30;//30
+	//param["alphaT"] = 0.01;
+	//param["numlearn"] = 1;
+	//param["printGen"] = 1;
+	//param["netaRange"] = { 0 };
+	//param["gammaRange"] = { 0 };
+	//param["tauRange"] = { 0.5 };
+	//param["seed"] = 9;
+	//param["forRat"] = 0.0;
+	//param["numSti"] = 2;
+	//param["numFeat"] = 2;
+	//param["propfullPrint"] = 0.8;
+	//param["attenMech"] = 2;
+	//param["folder"]       = "M:/Projects/CleanSarsa/Simulations/test_/";
+	//param["visitors"]["Sp1"]["alphas"] = { 1, 1 };
+	//param["visitors"]["Sp1"]["betas"] = { 0.01, 1 };
+	//param["visitors"]["Sp1"]["relAbun"] = 1;
+	//param["visitors"]["Sp1"]["reward"] = { 1, 0 };
+	//param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["Sp1"]["betas"] = { 1,1};
+	//param["residents"]["Sp1"]["relAbun"] = 1;
+	//param["residents"]["Sp1"]["reward"] = { 2, 0 };
 	
-
+	ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters.json");
 
 	// Read parameters
 	//ifstream input(argv[1]);
-	//if (input.fail()) { cout << "JSON file failed" << endl; }
-	//json param = nlohmann::json::parse(input);
+	if (input.fail()) { cout << "JSON file failed" << endl; }
+	json param = nlohmann::json::parse(input);
 	//
 	//// Pass on parameters from JSON to c++
 	//int const totRounds = param["totRounds"];
@@ -742,8 +751,7 @@ int main(int argc, char* argv[])
 							ofstream printTest;
 							//ofstream DPprint;
 
-							for (int k = 0; k < int(param["numlearn"]); ++k)
-							{
+							for (int k = 0; k < int(param["numlearn"]); ++k){
 								initializeIndFile(printTest, *learners[k],
 									param, 0, *itVisProb, *itResProb);
 								for (int i = 0; i < int(param["trainingRep"]); i++){
@@ -751,15 +759,17 @@ int main(int argc, char* argv[])
 									draw(clientSet,param, visitSpProbs,
 										residSpProbs);
 									for (int j = 0; j < int(param["totRounds"]); j++){
+										//cout << j << '\t' << endl;
 										learners[k]->act(clientSet, idClientSet, param,
 											visitSpProbs, residSpProbs);
-										learners[k]->update();
+										learners[k]->update(param["attenMech"]);
 										learners[k]->forget(double(param["forRat"]));
 										if (j > int(param["totRounds"])*param["propfullPrint"]){
 											learners[k]->printIndData(
 												printTest,i,param);
 										}
-										else if (j%int(param["printGen"]) == 0){									learners[k]->printIndData(
+										else if (j%int(param["printGen"]) == 0){
+											learners[k]->printIndData(
 												printTest,i, param);
 										}
 									}

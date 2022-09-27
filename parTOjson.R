@@ -2,6 +2,7 @@
 
 library("jsonlite")
 library(here)
+source(here("AccFunct.R"))
 
 
 exedir<-paste(projDir,'/./Sarsa.exe',sep='')
@@ -11,44 +12,33 @@ fileName<-"parameters.json"
 
 #test<-fromJSON(paste(codedir,"\\test.json",sep=""))
 
-scenario<-"AbundLvpTauRang"
+scenario<-"fullInfo"
 
-param<-list(totRounds=20000,ResReward=1,VisReward=1,
+param<-list(totRounds=10000,ResReward=1,VisReward=1,
             ResProb=c(0.2),
             VisProb=c(0.2),
             ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
             propfullPrint = 0.7,
-            alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0,0.8),
-            tauRange=c(0.5,1,2),netaRange=c(0,1),alphaThRange=c(0.01),
-            folderL=paste0(here("Simulations"),scenario,"_/"))
+            alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0),
+            tauRange=c(0.5),netaRange=c(0),
+            numSti = 2, # Number of different stimuli
+            numFeat = 2, # Number of different features for each stimuli
+            folderL=paste(here("Simulations","test_"),"/",sep=""))
 
-clustfolder="/hpcfs/home/a.quinones/CleanSarsa/AbundLvp_/"
+param$visitors$Sp1$alphas<-c(1,0.01)
+param$visitors$Sp1$betas<-c(0.01,1)
+param$visitors$Sp1$reward<-c(1,0)
+param$visitors$Sp1$relAbun=1
+param$residents$Sp1$alphas<-c(0.01,1)
+param$residents$Sp1$betas<-c(1,0.01)
+param$residents$Sp1$relAbun=1
+param$residents$Sp1$reward<-c(2,0)
+
 
 clustfolderNeu<-paste0("/home/ubuntu/SARSA/",scenario,"_/")
 
 
-check_create.dir<-function(folder,param,values){
-  setwd(folder)
-  listfolders<-paste(param,values,"_",sep = "")  
-  currFolders<-lapply(listfolders,dir.exists)
-  if(sum(currFolders>0)){
-    warning("At least one of the folders already exists \n Please check",
-            immediate. = TRUE)
-    print(cbind(listfolders,currFolders))
-    ans<-readline("Want to continue?")
-    if(substr(ans, 1, 1) == "y"){
-      lapply(listfolders,dir.create)
-      return(listfolders)
-    }
-    else{
-      return(listfolders)
-    }
-  }else{
-    lapply(listfolders,dir.create)
-    return(listfolders)
-  }
-}
 
 rangLeav<-seq(0,0.3,length.out = 9)
 rangAbund<-seq(0.1,0.9,length=9)
@@ -66,12 +56,13 @@ for (i in 1:length(rangLeav)) {
     # else param$printGen<-1000
     param$folderL<-paste0(here("Simulations",paste0(scenario,"_"),listfolders[i]),"/")
     param$folder<-paste0(clustfolderNeu,listfolders[i],"/")
+    param$folder<-param$folderL
     param$ResProb<-c((1-rangAbund[j])/2)
     param$VisProb<-c((1-rangAbund[j])/2)
     param$VisProbLeav<-rangLeav[i]
     outParam<-toJSON(param,auto_unbox = TRUE,pretty = TRUE)
-    fileName<-paste("parameters",j,".json",sep="")
-  if(file.exists(paste(param$folder,fileName,sep = ''))){
+    # fileName<-paste("parameters",j,".json",sep="")
+    if(file.exists(paste(param$folder,fileName,sep = ''))){
     currFile<-fromJSON(paste(param$folderL,fileName,sep = ''))
     if(sum(unlist(currFile)!=unlist(param))>0){
       # warning("You are erasing old files!! n\ Check first!!!",immediate. = TRUE)
@@ -81,7 +72,7 @@ for (i in 1:length(rangLeav)) {
       # print(unlist(param)[unlist(currFile)!=unlist(param)])
       # ans<-readline("Want to continue?")
       # if(substr(ans, 1, 1) == "y"){
-        write(outParam,paste(param$folderL,fileName,sep = ""))
+        write(outParam,paste(param$folderL,fileName,sep = "/"))
         # jobfile(param$folderL,listfolders[i],jobid = j)
       # }
     }

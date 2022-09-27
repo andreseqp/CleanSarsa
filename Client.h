@@ -86,7 +86,7 @@ client::client(client_ty type, std::vector<double> alphas,
 	}
 	else {
 		for (size_t i = 0; i < numStim; i++) {
-			features[i] = 1 + rnd::beta_binomial(_numFeat, alphas[i], betas[i]);
+			features[i] = 1 + rnd::beta_binomial(_numFeat-1, alphas[i], betas[i]);
 		}
 		/*heigth = rnd::normal(msdHeight[0], msdHeight[1]), length = rnd::normal(msdLength[0], msdLength[1]), mainRed = rnd::normal(mMainRGB[0],sdMainRGB[0]);
 		mainGreen = rnd::normal(mMainRGB[1],sdMainRGB[1]), mainBlue = rnd::normal(mMainRGB[2],sdMainRGB[2]), stripes = rnd::bernoulli(pStripes), dots = rnd::bernoulli(pDots);
@@ -120,7 +120,7 @@ void client::rebirth(client_ty type=absence,
 		}
 	else {
 		for (size_t i = 0; i < numStim; i++) {
-			features[i] = 1 + rnd::beta_binomial(_numFeat, alphas[i], betas[i]);
+			features[i] = 1 + rnd::beta_binomial(_numFeat-1, alphas[i], betas[i]);
 		}
 		//if (!featBool[0]) {
 		//	for (size_t i = 5; i < 8; i++) { featQuant[i] = 0; }
