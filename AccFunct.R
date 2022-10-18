@@ -98,8 +98,9 @@ getParam<-function(folder,agent,listparam=NULL,values=NULL){
   return(jsons)
 }
 
-file2timeInter<-function(filename,interV,maxAge=-2){
-  extPar<-strsplit(filename,split ="_/")[[1]][1]
+file2timeInter<-function(filename,interV,param,maxAge=-2){
+  extPar<-strsplit(filename,split ="_")[[1]] %>%  grep(pattern = param,
+                                                       value = TRUE)
   parVal<-as.numeric(gsub("[[:alpha:]]",extPar,replacement = ''))
   extPar<-gsub("[[:digit:]]",extPar,replacement = '')
   tmp<-fread(filename,nrows = maxAge+1)

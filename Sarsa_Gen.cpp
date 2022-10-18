@@ -424,8 +424,8 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
 		  values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]) -
 		  //alphas[0] = alpha*(abs(lambda - values[1]) -
 		  abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
-	  if (deltaTemp != 0) alphas[idAlpha] = alpha*deltaTemp;
-      clip_low(alphas[idAlpha], 0);
+	  if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
+      clip_range(alphas[idAlpha], 0,1);
 	  if (isnan(alphas[idAlpha])) {
 		  wait_for_return();
 	  }
@@ -433,11 +433,16 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
     // Based on @mackintosh_Theory_1975
 		break;
 	case 2:
-	alphas[idAlpha] = alpha*abs(lambda - 
-		values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
-	if (isnan(alphas[idAlpha])) {
-		wait_for_return();
-	}
+		alphas[idAlpha] = alpha*abs(lambda - 
+			values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]])+
+			(1-alpha)*alphas[idAlpha];
+		clip_range(alphas[idAlpha], 0,0.5);
+		if (alphas[idAlpha] > 1) {
+			wait_for_return();
+		}
+		if (isnan(alphas[idAlpha])) {
+			wait_for_return();
+		}
     //alphas[currState] = ;// attention increases with prediction error
     // Based on @pearce_Model_1980
     break;
@@ -445,7 +450,7 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
     alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT]) -
 			//alphas[0] = alpha*(abs(lambda - values[1]) -
 			abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
-    clip_low(alphas[idAlpha], 0);
+    clip_range(alphas[idAlpha], 0,1);
      if (isnan(alphas[idAlpha])) {
         wait_for_return();
      }
@@ -586,10 +591,10 @@ string create_filename(std::string filename, agent &individual,
 	filename.append(douts(individual.getLearnPar(tauPar)));
 	filename.append("_neta");
 	filename.append(douts(individual.getLearnPar(netaPar)));
-	filename.append("_pV");
-	filename.append(douts(pV));
-	filename.append("_pR");
-	filename.append(douts(pR));
+	filename.append("_AttMech");
+	filename.append(itos(param["attenMech"]));
+	/*filename.append("_pR");
+	filename.append(douts(pR));*/
 	filename.append("_seed");
 	filename.append(itos(param["seed"]));
 	filename.append(".txt");
@@ -658,25 +663,25 @@ int main(int argc, char* argv[])
 	// structure:
 
 	//json param;
-	//param["totRounds"] = 20000;
+	//param["totRounds"] = 10000;
 	//param["ResReward"] = 1;
 	//param["VisReward"] = param["ResReward"];
 	//param["ResProb"] =  0.3;
 	//param["VisProb"] =  0.3;
 	//param["ResProbLeav"] = 1;
 	//param["VisProbLeav"] = 1;
-	//param["negativeRew"] = -1;
+	//param["negativeRew"] = -0.5;
 	//param["experiment"] = false;
 	//param["inbr"] = 0.0;
 	//param["outbr"] = 0;
 	//param["trainingRep"] = 30;//30
 	//param["alphaT"] = 0.01;
 	//param["numlearn"] = 1;
-	//param["printGen"] = 1;
+	//param["printGen"] = 10000;
 	//param["netaRange"] = { 0 };
 	//param["gammaRange"] = { 0 };
 	//param["tauRange"] = { 0.5 };
-	//param["seed"] = 9;
+	//param["seed"] = 1;
 	//param["forRat"] = 0.0;
 	//param["numSti"] = 2;
 	//param["numFeat"] = 2;
@@ -692,10 +697,10 @@ int main(int argc, char* argv[])
 	//param["residents"]["Sp1"]["relAbun"] = 1;
 	//param["residents"]["Sp1"]["reward"] = { 2, 0 };
 	
-	ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters.json");
+	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters.json");
 
 	// Read parameters
-	//ifstream input(argv[1]);
+	ifstream input(argv[1]);
 	if (input.fail()) { cout << "JSON file failed" << endl; }
 	json param = nlohmann::json::parse(input);
 	//

@@ -12,34 +12,75 @@ fileName<-"parameters.json"
 
 #test<-fromJSON(paste(codedir,"\\test.json",sep=""))
 
-scenario<-"fullInfo"
+scenario<-"Partial2Info2_2"
 
 param<-list(totRounds=10000,ResReward=1,VisReward=1,
-            ResProb=c(0.2),
-            VisProb=c(0.2),
-            ResProbLeav=0,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+            ResProb=c(0.3),
+            VisProb=c(0.3),
+            ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
             propfullPrint = 0.7,
             alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0),
             tauRange=c(0.5),netaRange=c(0),
+            attenMech = 1,
             numSti = 2, # Number of different stimuli
             numFeat = 2, # Number of different features for each stimuli
             folderL=paste(here("Simulations","test_"),"/",sep=""))
 
-param$visitors$Sp1$alphas<-c(1,0.01)
-param$visitors$Sp1$betas<-c(0.01,1)
+param$visitors$Sp1$alphas<-c(1,1)
+param$visitors$Sp1$betas<-c(0.01,0.5)
 param$visitors$Sp1$reward<-c(1,0)
 param$visitors$Sp1$relAbun=1
-param$residents$Sp1$alphas<-c(0.01,1)
-param$residents$Sp1$betas<-c(1,0.01)
+param$residents$Sp1$alphas<-c(0.5,0.01)
+param$residents$Sp1$betas<-c(1,1)
 param$residents$Sp1$relAbun=1
 param$residents$Sp1$reward<-c(2,0)
 
 
-clustfolderNeu<-paste0("/home/ubuntu/SARSA/",scenario,"_/")
+# clustfolderNeu<-paste0("/home/ubuntu/SARSA/",scenario,"_/")
+
+# Loop to explore attention mechanisms
+check_create.dir(here("Simulations"),param = rep(scenario,1),
+                 values = c(""))
+
+Param<-"attenMech"
+rangParam<-c(0,1,2)
 
 
+for(j in 1:length(rangParam)){
+    # if(i==11) param$printGen<-1
+    # else param$printGen<-1000
+    param$folderL<-paste0(here("Simulations",paste0(scenario,"_")),"/")
+    param$folder<-param$folderL
+    param$attenMech<-rangParam[j]
+    fileName<-paste0("parameters_",j,".json")
+    outParam<-toJSON(param,auto_unbox = TRUE,pretty = TRUE)
+    # fileName<-paste("parameters",j,".json",sep="")
+    if(file.exists(paste(param$folder,fileName,sep = ''))){
+      currFile<-fromJSON(paste(param$folderL,fileName,sep = ''))
+      if(sum(unlist(currFile)!=unlist(param))>0){
+        # warning("You are erasing old files!! n\ Check first!!!",immediate. = TRUE)
+        # print("OLD value")
+        # print(unlist(currFile)[unlist(currFile)!=unlist(param)])
+        # print("NEW value")
+        # print(unlist(param)[unlist(currFile)!=unlist(param)])
+        # ans<-readline("Want to continue?")
+        # if(substr(ans, 1, 1) == "y"){
+        write(outParam,paste(param$folderL,fileName,sep = "/"))
+        # jobfile(param$folderL,listfolders[i],jobid = j)
+        # }
+      }
+    }
+    else{
+      write(outParam,paste(param$folderL,fileName,sep = ""))
+      # jobfile(param$folderL,listfolders[i],jobid = j)
+    }
+    # system(paste(exedir,
+    #   gsub("\\","/",paste(simsDir,listfolders[i],fileName,sep="\\"),fixed=TRUE)
+    #   ,sep = " "))
+  }
 
+# loops to explore cleaner abundance and visitor leaving prob
 rangLeav<-seq(0,0.3,length.out = 9)
 rangAbund<-seq(0.1,0.9,length=9)
 

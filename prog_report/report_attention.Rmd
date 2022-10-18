@@ -1,0 +1,205 @@
+---
+title: "The role of attention in learning"
+author: "Andres Quiñones"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:  
+  bookdown::pdf_document2:
+     number_sections : false 
+     toc: false 
+bibliography: "../Cleanerlearning.bib"
+keep_tex: yes
+header-includes:
+  - \usepackage{amsmath}
+---
+    
+
+```{r setup,include=FALSE,}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE)
+```
+
+## The model
+
+We asses the effect of the dynamics of associability in the learning process by implementing a reinforcement learning model where the value of $\alpha$ (speed of learning) changes according a different sets of rules proposed in the psychology literature. The model assumes that agent use different features of the object they are presented with to estimate a value for each object. Furthermore, they use the estimated value of the object to choose among them when these are presented together. We assume that the features characterizing objects can be classified in different perceptual dimensions. Thus, the combination of features present in an object for all the perceptual dimensions can potentially be used to discriminate among different type of objects. In the model we control the feature composition of the different objects, so we can change how informative they are in the discrimination task. 
+
+For illustration purposes, let's say we have two objects denoted by the index $k$. Each object can be characterized by the feature vector $f$ of length $m$, where each entry of the vector represents the state of a stimulus dimension. $m$ is then the number of stimuli dimensions available for the discrimination task. We further assume that these stimuli states are a discrete variable. Where the value $0$ represents the absence of such stimuli, and all the other values each a different state. 
+
+The learning agent stores in memory a value of association for each of the states of each stimuli dimension. Thus, if we assume each stimuli has $n$ possible states, the memory of the learning agent for this task can be represented as a matrix ($\boldsymbol{A}$) with dimensions $n \times m$. Each entry of this matrix is a real number that quantifies the estimate of value associated with that particular state of that stimulus. The total value predicted for one particular object is given by the sum of the associative values of each of the features present in the object. This computation, performed by the agent, can be summarized as follows
+
+$$
+V=\sum_{j=1}^{m}\sum_{i=1}^{n}a_{ij} F_{ij}
+$$
+
+where $a_{ij}$ represents the entries of matrix $A$, and $F_{ij}$ are the entries of matrix $\boldsymbol{F}$. Matrix  $\boldsymbol{F}$ is a matrix of zeros and ones representing the absence or presence,respectively, of a particular feature in each stimulus dimension for the focal object. The columns of $\boldsymbol{F}$  correspond to the stimulus dimensions and and each raw to a state of the stimulus.  
+
+
+As the agent encounters and chooses different objects it collects rewards from them. The difference between the reward obtained from an object and the estimated reward (the prediction error) is used to update the value estimates of each of the features
+present in the object. Formally, the prediction error is given by
+
+$$
+\delta^t = R^t - v^t ,
+$$
+where the superscript $t$ denotes the time at which the interaction took place. 
+
+The update for each of the features is given by
+
+$$ \Delta S_{ij}^t = \alpha^t_j \delta^t,  $$
+where the subscripts $i$ and $j$ correspond to the state of a given stimulus and 
+the stimulus, respectively; $\alpha^t_j$ is the speed of learning at time $t$ for 
+the stimulus $j$. 
+
+### Mechanisms of selective attention
+
+To assess the effect of changes in the speed of learning as a form of selective attention, we test three different scenarios. First as a benchmark, we test a scenario where learning speed remains constant throughout the trial. We then evaluate the effect of changes in the speed of learning dictated by the 
+Mackintosh @mackintosh_Theory_1975 and Pearce and Hall @pearce_Model_1980 rules. 
+
+#### The Mackintosh update
+
+@mackintosh_Theory_1975 proposed a model of attentional dynamics, where the
+central idea is that stimuli which are the best predictors of reward get an
+increase in the attention they enjoy during the learning process. Conversely, stimuli that are bad predictors, compared to all other, get a decrement in attention. Formally,
+@mackintosh_Theory_1975 defined the attentional update as
+
+
+\begin{align*}
+\Delta \alpha_i &> 0 \text{ if } |\lambda - V_i | <  |\lambda - V_P| \\
+\Delta \alpha_i &< 0 \text{ if } |\lambda - V_i | < |\lambda- V_P|
+\end{align*}
+
+
+Where $\lambda$ is the "real" associative value in a given trial, which translates
+to RL jargon as the reward; $V_i$ is the associative strength of the focal stimulus;
+and $V_p$ is sum of the associative strengths of the stimuli other than the focal.
+
+Following a notation more in line with the current model, we implemented the
+@mackintosh_Theory_1975 idea as follows
+
+$$
+\alpha_j^{t+1} = \alpha_j^{t}+\hat{\alpha}(|R^t -\sum_{l\neq j}^{m}\sum_{i=1}^{n}a_{il}F_{il}|-
+|R^t - \sum_{i=1}^{n}a_{ij}F_{ij}|)
+$$
+
+where $hat{\alpha}$ is a constant scaling the update on the speed of learning. Here, the update is proportional to the difference between a partial prediction error given by all other stimuli and the partial prediction error given by the focal stimuli. 
+
+
+### The Pearce and Hall
+
+@pearce_Model_1980 proposed a model of attentional dynamics, where the
+central idea is that the level of attention is proportional to the difference
+between the real associative strength and that predicted by the stimulus.
+Formally, @pearce_Model_1980 defined the attentional update as
+
+$$
+\alpha^t = \rho|\lambda^{t-1}-V^{t-1}_{\sum}| + (1-\rho)\alpha^{t-1},
+$$
+
+where $V_{\sum}^{t-1}$ represents the total associative strength triggered
+by the stimulus; and $\rho$ is a constant that measure how fast are the
+jumps in attention.
+
+Following a notation more in line with the current model, we implemented the
+@pearce_Model_1980 idea as follows
+
+$$
+\alpha_i^{t+1} = \hat{\alpha}|R^t -a_{ij}^t|+(1-\hat{\alpha})\alpha_i^t
+$$
+
+
+
+
+
+<!-- so  if  Just like like in previous versions of the model, we assume that clients that  -->
+<!-- reach the cleaning station of a cleaner fish can be classified into resident  -->
+<!-- or visitors. Up to two of these clients can demand cleaning service simultaneously. -->
+<!-- In such case the cleaner fish must choose which client to clean first. In order to -->
+<!-- make that choice, the cleaner fish estimates a value for each client combination -->
+<!-- that it faces. Hence, each client combination is a **state** in Reinforcement  -->
+<!-- Learning (RL) jargon. In order to update the estimates and use the estimations  -->
+<!-- based on the client types, cleaners must discriminate between  -->
+<!-- the two types and their combinations in the cleaning stations. We, thus, assume -->
+<!-- that each client type is associated with a specific stimulus. The cleaner fish -->
+<!-- stores an estimate of value for each of these stimuli in a look-up table  -->
+<!-- \ref{tab:lookup}. These estimates of individual client values are used independently -->
+<!-- or combined depending on the state of the cleaning station. For example,  -->
+<!-- when the cleaning station only has a resident the estimated value is  -->
+<!-- $S_r$ of the state; while when it has a resident and a visitor the  -->
+<!-- estimated value is $S_r+S_v$. This combination of stimuli to estimate  -->
+<!-- value is in line with classical accounts of associative  -->
+<!-- learning [@rescorla_Theory_1972].  -->
+
+<!-- The estimation and decision making are structured as in the **actor-critic**  -->
+<!-- implementation in RL. Both the value estimation update (the critic) and the  -->
+<!-- decision making update (the actor), change proportionally to the  -->
+<!-- prediction error ($\delta$) -->
+
+
+
+<!-- where $t$ and $t+1$ refer to the current and future cleaning  -->
+<!-- interactions respectively; $R$ is the primary reward obtained from the  -->
+<!-- choice made; $\gamma$ is measure of how much future reward  -->
+<!-- influences the estimation process; and the sum terms correspond  -->
+<!-- to the estimate of value made by summing over the client  -->
+<!-- fish present in the corresponding cleaning -->
+<!-- interaction. The total update of the value estimation is given by the product -->
+<!-- of $\delta$ and $\alpha_i$, which can be interpreted as how much  -->
+<!-- attention the cleaner fish pays to each stimuli. The fact that each stimuli  -->
+<!-- can have a different $\alpha_i$ implies that the model implement differential  -->
+<!-- attention. Furthermore, the actual value of $\alpha_i$ may be updated  -->
+<!-- and depend on specific rules, which will be explained later.  -->
+<!-- So, the update rule for the critic is given by -->
+
+<!-- $$ \Delta S_i^t = \alpha^t_i \delta^t.  $$ -->
+
+<!-- The decision between resident and visitor is implemented as a probability,  -->
+<!-- which is given by  -->
+
+<!-- $$ \pi_i = \frac{1}{1+e^{-(\theta_i-\theta_j)}}$$ -->
+<!-- where $\theta_i$ and $\theta_j$ are the preferences for each of the two  -->
+<!-- available options. These preferences start on zero and are updated on every  -->
+<!-- cleaning interaction where the cleaner fish chooses among of the two -->
+<!-- options according to -->
+
+<!-- $$ \Delta (\theta_i-\theta_j) = \beta_i^t \delta_t2(1-\pi_i)$$ -->
+<!-- where $\beta$ is the speed of the actor update and can be also interpreted as  -->
+<!-- the attention that is paid to the respective stimuli in the decision-making -->
+<!-- process.  -->
+
+<!-- ```{r lookup} -->
+<!-- lookupTab<-data.frame(client=c("Resident","Visitor","absence"), -->
+<!--                       Value=c("$S_r$","$S_v$",0)) -->
+<!-- knitr::kable(lookupTab,caption = "Look up table where a cleaner fish stores the  -->
+<!--              estimated values for each client type.",escape=FALSE) -->
+<!-- ``` -->
+
+<!-- ## Attention updates  -->
+
+<!-- In the following sections we explain three different possible rules for  -->
+<!-- the change in the selective attention variables. -->
+
+<!-- ### Static attention -->
+
+<!-- As a benchmark we implement first a model where attention is not selective,  -->
+<!-- all stimuli get the same attention and this level of attention does not vary -->
+<!-- as learning proceeds. Figure \ref{fig:bench} shows the dynamics of the  -->
+<!-- resident *vs* visitor choices that agents make along the learning process.  -->
+<!-- The dynamics are discriminated according to how important future reward  -->
+<!-- is in the estimation ($\gamma$). The dynamics show that regardless of the value  -->
+<!-- of $\gamma$ used in the simulations, this set up does not allow cleaner fish  -->
+<!-- to develop a preference for the visitor over the resident. Interestingly,  -->
+<!-- under $\gamma=0$ the learning process leads to a small proference fir the  -->
+<!-- resident option; while with $\gamma>0$ agents stay with a neutral preference. -->
+
+
+
+<!-- ## An alternative Mackintosh implementation -->
+
+<!-- During the development of the model an alternative implementation to the @mackintosh_Theory_1975. This alternative implementation captures the original conceptual idea. However, it implements it in a slightly different way: -->
+
+<!-- $$ -->
+<!-- \alpha_i^{t+1} = \hat{\alpha}(|R^t + \gamma \sum_{j}^{n^{t+1}} S_j^{t+1}-\sum_{j}^{n^{t+1}}S_j^{t}|- -->
+<!-- |R^t + \gamma \sum_{j}^{n^{t+1}} S_j^{t+1}-S_i^t|) -->
+<!-- $$ -->
+
+
+# References
+
+
