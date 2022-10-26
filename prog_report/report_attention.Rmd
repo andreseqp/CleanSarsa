@@ -60,7 +60,7 @@ where $V_n^t$ is the estimated value of object $n$ at time $t$, and $\tau$ is a 
 ### Mechanisms of selective attention
 
 To assess the effect of changes in the speed of learning as a form of selective attention, we test three different scenarios. First as a benchmark, we test a scenario where learning speed remains constant throughout the trial. We then evaluate the effect of changes in the speed of learning dictated by the 
-Mackintosh @mackintosh_Theory_1975 and Pearce and Hall @pearce_Model_1980 rules. 
+Mackintosh @mackintosh_Theory_1975 and Pearce and Hall @pearce_Model_1980 rules. The rules described here determined the changes in the speed of learning in the simulations as long as the rate does not go bellow 0 or above 0.5, otherwise the rate was set to the corresponding limit. This was done because very high values can make the learning algorithm unstable, and lead to erroneous estimation.    
 
 #### The Mackintosh update
 
