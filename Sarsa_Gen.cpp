@@ -71,7 +71,7 @@ public:
 	// constructor providing values for the learning parameters
 	~agent();																
 	// destructor not really necessary
-	void update(int attenMech=0);
+	void update(int attenMech=0,double maxAlpha=1);
 	// function that updates the value of state-action pairs according to 
 	//current reward and estimates of future values
 	void act(client newOptions[], int &idNewOptions, nlohmann::json param,
@@ -122,7 +122,7 @@ public:
 	int numSti, numFeat;
 	// Number of estimates characterizing bhavioural options 9 for FIA
 	// Calculate new \alpha (associability) for each stimuli
-	void updateAlpha(int idAplha, double lambda, int attenMech);
+	void updateAlpha(int idAplha, double lambda, double max,int attenMech);
 protected:
 	double values[10][5];																							
 	// array storing the estimated values of different features
@@ -398,7 +398,7 @@ void agent::act(client newOptions[], int &idNewOptions,
  	choice();
 }
 
-void agent::update(int attenMech){
+void agent::update(int attenMech, double maxAlpha){
 	// change estimated value according to current reward and estimates of future state-action pair
 	double lambda;
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
@@ -408,11 +408,11 @@ void agent::update(int attenMech){
 			alphas[countStim] * delta;
 	}
 	for (int countStim = 0; countStim < numSti; ++countStim) {
-		updateAlpha(countStim,lambda,attenMech);
+		updateAlpha(countStim,lambda,maxAlpha,attenMech);
 	}
 }
 
-void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
+void agent::updateAlpha(int idAlpha, double lambda, double max=1, int attenMech = 0) {
   // implementation of mechanism of selective attention. Changes in
   // the speed of learning (\alpha)
 	double deltaTemp;
@@ -425,7 +425,7 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
 		  //alphas[0] = alpha*(abs(lambda - values[1]) -
 		  abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
 	  if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
-      clip_range(alphas[idAlpha], 0,1);
+      clip_range(alphas[idAlpha], 0,max);
 	  if (isnan(alphas[idAlpha])) {
 		  wait_for_return();
 	  }
@@ -436,7 +436,7 @@ void agent::updateAlpha(int idAlpha, double lambda, int attenMech = 0) {
 		alphas[idAlpha] = alpha*abs(lambda - 
 			values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]])+
 			(1-alpha)*alphas[idAlpha];
-		clip_range(alphas[idAlpha], 0,0.5);
+		clip_range(alphas[idAlpha], 0,max);
 		if (alphas[idAlpha] > 1) {
 			wait_for_return();
 		}
@@ -687,6 +687,7 @@ int main(int argc, char* argv[])
 	//param["numFeat"] = 2;
 	//param["propfullPrint"] = 0.8;
 	//param["attenMech"] = 2;
+	//param["maxAlpha"] = 1;
 	//param["folder"]       = "M:/Projects/CleanSarsa/Simulations/test_/";
 	//param["visitors"]["Sp1"]["alphas"] = { 1, 1 };
 	//param["visitors"]["Sp1"]["betas"] = { 0.01, 1 };
@@ -767,7 +768,8 @@ int main(int argc, char* argv[])
 										//cout << j << '\t' << endl;
 										learners[k]->act(clientSet, idClientSet, param,
 											visitSpProbs, residSpProbs);
-										learners[k]->update(param["attenMech"]);
+										learners[k]->update(param["attenMech"],
+											param["maxAlpha"]);
 										learners[k]->forget(double(param["forRat"]));
 										if (j > int(param["totRounds"])*param["propfullPrint"]){
 											learners[k]->printIndData(

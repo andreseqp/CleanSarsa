@@ -27,7 +27,8 @@ ggplot(data = pvar.binom,aes(x=value,fill=p.val))+
 
 
 us<-c(0.01)
-pvar.betabinom<-data.table(value=as.factor(c(rbb(n = 10000,N = n.dim,u = us[1],v = 1),
+pvar.betabinom<-data.table(value=as.factor(c(rbb(n = 10000,N = n.dim,
+                                                 u = us[1],v = 1),
                                rbb(n = 10000,N = n.dim,u = us[2],v = 1),
                                rbb(n = 10000,N = n.dim,u = us[3],v = 1))),
                        u=as.factor(rep(us,each=10000)))

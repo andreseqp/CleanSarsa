@@ -12,7 +12,7 @@ fileName<-"parameters.json"
 
 #test<-fromJSON(paste(codedir,"\\test.json",sep=""))
 
-scenario<-"Partial2Info2_2"
+scenario<-"fullInfo2_2"
 
 param<-list(totRounds=10000,ResReward=1,VisReward=1,
             ResProb=c(0.3),
@@ -22,17 +22,17 @@ param<-list(totRounds=10000,ResReward=1,VisReward=1,
             propfullPrint = 0.7,
             alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0),
             tauRange=c(0.5),netaRange=c(0),
-            attenMech = 1,
+            attenMech = 1,maxAlpha=0.5,
             numSti = 2, # Number of different stimuli
             numFeat = 2, # Number of different features for each stimuli
             folderL=paste(here("Simulations","test_"),"/",sep=""))
 
-param$visitors$Sp1$alphas<-c(1,1)
-param$visitors$Sp1$betas<-c(0.01,0.5)
+param$visitors$Sp1$alphas<-c(1,0.01)
+param$visitors$Sp1$betas<-c(0.01,1)
 param$visitors$Sp1$reward<-c(1,0)
 param$visitors$Sp1$relAbun=1
-param$residents$Sp1$alphas<-c(0.5,0.01)
-param$residents$Sp1$betas<-c(1,1)
+param$residents$Sp1$alphas<-c(0.01,1)
+param$residents$Sp1$betas<-c(1,0.01)
 param$residents$Sp1$relAbun=1
 param$residents$Sp1$reward<-c(2,0)
 

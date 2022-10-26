@@ -7,7 +7,7 @@ library(tidyr)
 library("cowplot")
 source(here("AccFunct.R"))
 
-scenario<-"PartialInfo2_2_"
+scenario<-"fullInfo2_2_"
 
 # load test data
 list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
@@ -70,7 +70,7 @@ Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
 
 
 png(here("Simulations",scenario,"clientTypesVal.png"))
-ggplot(rawData[Age%%500==0],
+ggplot(rawData[Age%%200==0],
        aes(y=Val.Clien1,x=Age,color=Client1,
                                shape=AttMech))+
   geom_point()+
@@ -117,7 +117,7 @@ ggplot(data = Alphas.long[Age%%500==0],aes(x=Age,y=value,color=Stimulus))+
 dev.off()
 
 png(here("Simulations",scenario,"Mack_alpha_dyn.png"))
-ggplot(data = Alphas.long[AttMech=="Mackintosh" & Age%%500==0],
+ggplot(data = Alphas.long[AttMech=="Mackintosh" & Age%%200==0],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~Training)+
@@ -126,7 +126,7 @@ ggplot(data = Alphas.long[AttMech=="Mackintosh" & Age%%500==0],
 dev.off()
 
 png(here("Simulations",scenario,"PH_alpha_dyn.png"))
-ggplot(data = Alphas.long[AttMech=="Pearce-Hall" ],
+ggplot(data = Alphas.long[AttMech=="Pearce-Hall"& Age%%500==0 ],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   geom_hline(yintercept = 1)+

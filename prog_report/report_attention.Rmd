@@ -8,13 +8,15 @@ output:
      toc: false 
 bibliography: "../Cleanerlearning.bib"
 keep_tex: yes
+fig_caption: yes
 header-includes:
   - \usepackage{amsmath}
 ---
     
 
-```{r setup,include=FALSE,}
-knitr::opts_chunk$set(echo = FALSE,message = FALSE)
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,warning = FALSE)
+library(here)
 ```
 
 ## The model
@@ -46,6 +48,14 @@ $$ \Delta S_{ij}^t = \alpha^t_j \delta^t,  $$
 where the subscripts $i$ and $j$ correspond to the state of a given stimulus and 
 the stimulus, respectively; $\alpha^t_j$ is the speed of learning at time $t$ for 
 the stimulus $j$. 
+
+### Desicion making 
+
+Every time the agent faces two objects (regardless of the type they belong to) it must decide which object to exploit. These decision making process is done by converting the difference in estimated value into a probability with which to choose each object. This conversion is done using the *soft-max* distribution. Formally the probability of choosing object $k$ is given by 
+$$
+p^t_k=\frac{e^{V^t_k/\tau}}{e^{V^t_k/\tau}+e^{V^t_n/\tau}}
+$$
+where $V_n^t$ is the estimated value of object $n$ at time $t$, and $\tau$ is a parameter controlling how strongly value differences determine the agent's choice. In other words, it's a parameter determining the balance between exploration and exploitation in the learning process.
 
 ### Mechanisms of selective attention
 
@@ -103,9 +113,519 @@ $$
 \alpha_i^{t+1} = \hat{\alpha}|R^t -a_{ij}^t|+(1-\hat{\alpha})\alpha_i^t
 $$
 
+## Preliminary results
+
+In order to asses the dynamic behavior of the three discrimination mechanisms described above we run the model under three alternative scenarios where we vary how informative the object features are, bellow we describe each scenario. In all cases, we assume object 1 is twice as rewarding for the agent. Thus, the optimal choice shoould be to go for that first object. 
+
+(@) Perfect information for two stimuli dimensions:  
+<!-- scenario codeword: fullINfo2_2_ -->
+Here we assume that objects are characterized by two features, each from different stimuli dimensions. Both of this features have useful information for the discrimination task. That means for the first dimension object 1 has almost always feature 1, while object 2 has almost always feature two. Similarly for the second dimension, object 1 has feature 2, while object 2 has feature 1.
+
+
+```{r fig1, fig.cap='Frequency of features of the two different stimuli in the two different objects for the perfect information scenario.'}
+library(here)
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggpubr)
+source(here("AccFunct.R"))
+
+scenario<-"fullInfo2_2_"
+
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE)
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,`:=`(Val.Clien1=fcase(Stim1.0==0,Val.00,
+                               Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+                fcase(Stim1.1==0,Val.10,
+                      Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+              Val.Clien2=fcase(Stim2.0==0,Val.00,
+                               Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+                fcase(Stim2.1==0,Val.10,
+                      Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                      labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
+)]
+ggarrange(
+  ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("frequency")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic(),
+  ggplot(data=rawData[Stim1.1!=0],aes(x=Client1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("frequency")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic(),common.legend=T
+    
+)
+```
+
+
+```{r, fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with full information in both stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+interv<-51
+
+simsDir<-here("Simulations",scenario)
+
+PAAtimeInt<-do.call(
+  rbind,lapply(
+    getFilelist(simsDir,fullNam = TRUE)$PIA,
+    file2timeInter,"AttMech",interV=interv))
+PAAtimeInt[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                            labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+value.obj.plot<-ggplot(rawData[Age<2500 & Age %% 50 ==0],
+       aes(y=Val.Clien1,x=Age,color=Client1,
+                               shape=AttMech))+
+  geom_point()+ylab("Value")+
+  labs(shape="Attention \n mechanism", color="Objects")+
+  geom_hline(yintercept = c(0,1,2),color="grey")+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+  
+
+timeInterv.plot<-ggplot(PAAtimeInt[Interv<50],aes(x=Interv,y=Prob.RV.V,color=AttMech))+
+  stat_summary(fun.data = function(x) {
+      xFive<-fivenum(x)
+      return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))
+  })+
+  ylim(0,1)+labs(color="Attention \n mechanism",
+                 y="Frequency of \n incorrect choices",
+                 x="Interval of 200 trials")+
+  geom_hline(yintercept = soft_max(1,2,0.5),color="grey")+
+  theme_classic()+  
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5))
+
+ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 0.1 )
+
+```
+
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the full information scenario. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }  
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:6],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age<2500 & Age %% 50 ==0],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=200))+
+  # geom_path()+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+```
+
+
+```{r,fig.cap='Dynamics of the learning speeds for each stimuli dimension discriminated by the attention mechanisms in the escenario with full information.'}
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+ggplot(data = Alphas.long[Age<2500 & Age %% 50 ==0],aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=200))+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+
+```{r, fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with full information.'}
+mack.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Mackintosh" & Age%%200==0)&
+                            Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title = "Mackintosh")+
+  theme_classic()
+# dev.off()
+
+# png(here("Simulations",scenario,"PH_alpha_dyn.png"))
+PH.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Pearce-Hall"& Age%%200==0)&
+                          Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title ="Pearce-Hall")+
+  theme_classic()
+
+ggarrange(mack.Dyn.plot,PH.Dyn.plot,common.legend = T)
+
+```
+
+
+```{r}
+library(jsonlite)
+source(here("AccFunct.R"))
+scenario<-"PartialInfo2_2_"
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+# dbb(0,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1])
+# dbb(1,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1])
+# dbb(0,1,params$visitors$Sp1$alphas[2],params$visitors$Sp1$betas[2])
+```
+
+(@) Partial information for one stimulus out of two:  
+<!-- scenario codeword: PartialInfo2_2_ -->
+Here one of the stimuli  contains information to distinguish the two object types. However, the information does not allow perfect discrimination. Specifically, object 1 has the feature 1, in the first stimulus dimension, with probability $`r round(dbb(0,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$ and the alternative feature with the complementary probability ($`r round(dbb(1,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$). In contrast, object 2 has feature 2  in the first stimulus dimension, with probability $`r round(dbb(1,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1]),2)`$. Thus, associating object 2 with feature two in the first dimension will lead to some errors where object 1 will be identifies as object 2. The features of the second stimulus have even probability for both objects. 
 
 
 
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for one stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE)
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,`:=`(Val.Clien1=fcase(Stim1.0==0,Val.00,
+                               Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+                fcase(Stim1.1==0,Val.10,
+                      Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+              Val.Clien2=fcase(Stim2.0==0,Val.00,
+                               Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+                fcase(Stim2.1==0,Val.10,
+                      Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                      labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
+)]
+ggarrange(
+  ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic(),
+  ggplot(data=rawData[Stim1.1!=0],aes(x=Client1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic(),common.legend=T
+    
+)
+```
+
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in one stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+interv<-201
+
+simsDir<-here("Simulations",scenario)
+
+PAAtimeInt<-do.call(
+  rbind,lapply(
+    getFilelist(simsDir,fullNam = TRUE)$PIA,
+    file2timeInter,"AttMech",interV=interv))
+PAAtimeInt[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                            labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+value.obj.plot<-ggplot(rawData[Age%%100==0],
+       aes(y=Val.Clien1,x=Age,color=Client1,
+                               shape=AttMech))+
+  geom_point()+ylab("Value")+
+  labs(shape="Attention \n mechanism", color="Objects")+
+  geom_hline(yintercept = c(0,1,2),color="grey")+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+  
+
+timeInterv.plot<-ggplot(PAAtimeInt,aes(x=Interv,y=Prob.RV.V,color=AttMech))+
+  stat_summary(fun.data = function(x) {
+      xFive<-fivenum(x)
+      return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))
+  })+
+  ylim(0,1)+labs(color="Attention \n mechanism",
+                 y="Frequency of incorrect choice",
+                 x="Interval of 200 trials")+
+  geom_hline(yintercept = soft_max(1,2,0.5))+
+  theme_classic()+  
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5))
+
+ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 0.1)
+
+```
+
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the scenario with partial information in one stimuli. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:6],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age%%300==0],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=200))+
+  # geom_path()+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+```
+
+
+```{r,fig.cap='Dynamics of the learning speeds for each stimuli dimension discriminated by the attention mechanisms in the escenario with partial information for one stimuli.'}
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+ggplot(data = Alphas.long[Age%%500==0],aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=200))+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+
+
+```{r, fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
+mack.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Mackintosh" & Age%%200==0)&
+                            Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title = "Mackintosh")+
+  theme_classic()
+# dev.off()
+
+# png(here("Simulations",scenario,"PH_alpha_dyn.png"))
+PH.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Pearce-Hall"& Age%%500==0)&
+                          Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title ="Pearce-Hall")+
+  theme_classic()
+
+ggarrange(mack.Dyn.plot,PH.Dyn.plot,common.legend = T)
+
+```
+
+
+```{r}
+library(jsonlite)
+source(here("AccFunct.R"))
+scenario<-"Partial2Info2_2_"
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+# dbb(0,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1])
+# dbb(0,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1])
+# dbb(0,1,params$visitors$Sp1$alphas[2],params$visitors$Sp1$betas[2])
+```
+
+(@) Partial information for both stimuli:  
+<!-- scenario codeword: Partial2Info2_2_ -->
+Here both of the stimuli  contains information to distinguish the two object types. However, each individually does not allow for perfect discrimination. Specifically, object 1 has the feature 1, in the first stimulus dimension, with probability $`r round(dbb(0,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$ and the alternative feature with the complementary probability ($`r round(dbb(1,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$). In contrast, object 2 has feature 2  in the first stimulus dimension, with probability $`r round(dbb(1,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1]),2)`$. Thus, associating object 2 with feature 2 in the first dimension will lead to some errors where object 1 will be identified as object 2. This same behavior applies in this scenario for both stimuli dimensions.
+
+
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for two stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE)
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,`:=`(Val.Clien1=fcase(Stim1.0==0,Val.00,
+                               Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+                fcase(Stim1.1==0,Val.10,
+                      Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+              Val.Clien2=fcase(Stim2.0==0,Val.00,
+                               Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+                fcase(Stim2.1==0,Val.10,
+                      Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                      labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
+)]
+ggarrange(
+  ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic(),
+  ggplot(data=rawData[Stim1.1!=0],aes(x=Client1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic(),common.legend=T
+    
+)
+```
+
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in both stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+interv<-201
+
+simsDir<-here("Simulations",scenario)
+
+PAAtimeInt<-do.call(
+  rbind,lapply(
+    getFilelist(simsDir,fullNam = TRUE)$PIA,
+    file2timeInter,"AttMech",interV=interv))
+PAAtimeInt[,AttMech:=factor(AttMech,levels = c(0,1,2),
+                            labels = c("no mechanism","Mackintosh","Pearce-Hall"))]
+
+value.obj.plot<-ggplot(rawData[Age%%100==0],
+       aes(y=Val.Clien1,x=Age,color=Client1,
+                               shape=AttMech))+
+  geom_point()+ylab("Value")+
+  labs(shape="Attention \n mechanism", color="Objects")+
+  geom_hline(yintercept = c(0,1,2),color="grey")+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+  
+
+timeInterv.plot<-ggplot(PAAtimeInt,aes(x=Interv,y=Prob.RV.V,color=AttMech))+
+  stat_summary(fun.data = function(x) {
+      xFive<-fivenum(x)
+      return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))
+  })+
+  ylim(0,1)+labs(color="Attention \n mechanism",
+                 y="Frequency of incorrect choice",
+                 x="Interval of 200 trials")+
+  geom_hline(yintercept = soft_max(1,2,0.5))+
+  theme_classic()+  
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5))
+
+ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 0.1)
+
+```
+
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the scenario with partial information in one stimuli. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:6],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age%%300==0],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=200))+
+  # geom_path()+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+```
+
+
+```{r,fig.cap='Dynamics of the learning speeds for each stimuli dimension discriminated by the attention mechanisms in the escenario with partial information for both stimuli.'}
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+Alphas.long[,Stimulus:=factor(Stimulus,levels = c("alpha.0","alpha.1"),
+                             labels=c(0,1))]
+ggplot(data = Alphas.long[Age%%500==0],aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=200))+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+
+
+```{r, , fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
+mack.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Mackintosh" & Age%%200==0)&
+                            Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title = "Mackintosh")+
+  theme_classic()
+# dev.off()
+
+# png(here("Simulations",scenario,"PH_alpha_dyn.png"))
+PH.Dyn.plot<-ggplot(data = Alphas.long[(AttMech=="Pearce-Hall"& Age%%500==0)&
+                          Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~Training)+
+  facet_wrap(~Training)+labs(title ="Pearce-Hall")+
+  theme_classic()
+
+ggarrange(mack.Dyn.plot,PH.Dyn.plot,common.legend = T)
+
+```
 
 <!-- so  if  Just like like in previous versions of the model, we assume that clients that  -->
 <!-- reach the cleaning station of a cleaner fish can be classified into resident  -->
