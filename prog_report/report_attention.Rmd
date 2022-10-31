@@ -112,6 +112,7 @@ Following a notation more in line with the current model, we implemented the
 $$
 \alpha_i^{t+1} = \hat{\alpha}|R^t -a_{ij}^t|+(1-\hat{\alpha})\alpha_i^t
 $$
+All the source code necessary to run de simulations can be found at *https://github.com/andreseqp/CleanSarsa*. 
 
 ## Preliminary results
 
