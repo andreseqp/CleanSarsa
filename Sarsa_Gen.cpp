@@ -53,6 +53,7 @@ Last edit date:
 
 #define GET_VARIABLE_NAME(Variable) (#Variable)
 
+
 using namespace std;
 using json = nlohmann::json;
 
@@ -192,7 +193,7 @@ void agent::rebirth(double initVal = 0){
 	currentReward = 0;
 	cumulReward = 0;
 	for (int i=0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat+1; ++j)	 values[i][j] = initVal;
+		rnd::normal(0,0.5);
 		alphas[i] = alpha;
 	}
 }
@@ -425,7 +426,7 @@ void agent::updateAlpha(int idAlpha, double lambda, double max=1, int attenMech 
 		  //alphas[0] = alpha*(abs(lambda - values[1]) -
 		  abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
 	  if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
-      clip_range(alphas[idAlpha], 0,max);
+    clip_range(alphas[idAlpha], 0,max);
 	  if (isnan(alphas[idAlpha])) {
 		  wait_for_return();
 	  }
@@ -447,15 +448,22 @@ void agent::updateAlpha(int idAlpha, double lambda, double max=1, int attenMech 
     // Based on @pearce_Model_1980
     break;
   case 3:
-    alphas[idAlpha] = alpha*(abs(lambda - valuesT[choiceT]) -
-			//alphas[0] = alpha*(abs(lambda - values[1]) -
-			abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]));
-    clip_range(alphas[idAlpha], 0,1);
+    deltaTemp = alpha*values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]];
+    if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
+    clip_range(alphas[idAlpha], 0,max);
      if (isnan(alphas[idAlpha])) {
         wait_for_return();
      }
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
+	case 4:
+	  if (deltaTemp != 0) alphas[idAlpha] += alpha*delta;
+	  clip_range(alphas[idAlpha], 0,max);
+	  if (isnan(alphas[idAlpha])) {
+	    wait_for_return();
+	  }
+	  //alphas[currState] = ;// attention increases with total prediction error
+	  // Based on @pearce_Model_1980
     break;
   default:
     break;
@@ -554,11 +562,24 @@ void draw(client trainingSet[], json param,
 	double rndNum;
 	json::iterator itSpsVis = param["visitors"].begin();
 	json::iterator itSpsRes = param["residents"].begin();
+	int trialSpChanges[10];
+	int spNum = param["visitors"].size();
+	for (int j = 0; j < param["visitors"].size() +1; ++j)
+		trialSpChanges[j] = j*param["totRounds"].get<int>()*2 /
+		param["visitors"].size();
 	for (int i = 0; i < param["totRounds"].get<int>() * 2; i++) {
+		int Sp;
+		if (param["seqSp"]) {
+			int j = 0;
+			while (i >= trialSpChanges[j]) {
+				++j, Sp = j;
+			}
+		}
 		rndNum = rnd::uniform();
 		if (rndNum < cumProbs[0]) {
 			string chosenSp = "Sp";
-			chosenSp.append(itos(residSpProb.sample() + 1));
+			if (param["seqSp"]) chosenSp.append(itos(Sp));
+			else chosenSp.append(itos(residSpProb.sample() + 1));
 			trainingSet[i] = client(resident,
 				param["residents"][chosenSp]["alphas"],
 				param["residents"][chosenSp]["betas"],
@@ -567,7 +588,8 @@ void draw(client trainingSet[], json param,
 		}
 		else if (rndNum < cumProbs[1]) {
 			string chosenSp = "Sp";
-			chosenSp.append(itos(visitSpProb.sample() + 1));
+			if (param["seqSp"]) chosenSp.append(itos(Sp));
+			else chosenSp.append(itos(residSpProb.sample() + 1));
 			trainingSet[i] = client(visitor, 
 				param["visitors"][chosenSp]["alphas"],
 				param["visitors"][chosenSp]["betas"],
@@ -614,7 +636,7 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 	}
 	else{
 		folder = typeid(learner).name();
-		folder.erase(0, 6).append("_");
+		folder.erase(0, 1);
 		cout << folder << '\t' << learner.getLearnPar(alphaPar) << '\t';
 		cout << learner.getLearnPar(gammaPar) << '\t';
 		cout << learner.getLearnPar(tauPar) << '\t';
@@ -635,15 +657,15 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 		indOutput << "Training" << '\t' << "Age" << '\t' << "Alpha" << '\t';
 		indOutput << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t';
 		indOutput <<  "Client1" << '\t';
-		for (int k = 0; k < param["numSti"]; ++k)
+		for (int k = 0; k < int(param["numSti"]); ++k)
 			indOutput << "Stim1." + itos(k) << '\t';
 		indOutput << "Client2" << '\t';
-		for (int k = 0; k < param["numSti"]; ++k)
+		for (int k = 0; k < int(param["numSti"]); ++k)
 			indOutput << "Stim2." + itos(k) << '\t';
 		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
 		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
-		for (int i=0; i< param["numSti"];++i){
-			for (int j = 0; j < param["numFeat"] + 1; ++j)
+		for (int i=0; i< int(param["numSti"]);++i){
+			for (int j = 0; j < int(param["numFeat"]) + 1; ++j)
 				indOutput << "Val." + itos(i) + itos(j) << "\t";
 			indOutput << "alpha." + itos(i) << "\t";
 		}
@@ -663,42 +685,52 @@ int main(int argc, char* argv[])
 	// structure:
 
 	//json param;
-	//param["totRounds"] = 10000;
-	//param["ResReward"] = 1;
-	//param["VisReward"] = param["ResReward"];
-	//param["ResProb"] =  0.3;
-	//param["VisProb"] =  0.3;
-	//param["ResProbLeav"] = 1;
-	//param["VisProbLeav"] = 1;
-	//param["negativeRew"] = -0.5;
+	//param["totrounds"] = 5000;
+	//param["resreward"] = 1;
+	//param["visreward"] = param["resreward"];
+	//param["resprob"] =  0.3;
+	//param["visprob"] =  0.3;
+	//param["resprobleav"] = 1;
+	//param["visprobleav"] = 1;
+	//param["negativerew"] = -0.5;
 	//param["experiment"] = false;
 	//param["inbr"] = 0.0;
 	//param["outbr"] = 0;
-	//param["trainingRep"] = 30;//30
-	//param["alphaT"] = 0.01;
+	//param["trainingrep"] = 30;//30
+	//param["alphat"] = 0.005;
 	//param["numlearn"] = 1;
-	//param["printGen"] = 10000;
-	//param["netaRange"] = { 0 };
-	//param["gammaRange"] = { 0 };
-	//param["tauRange"] = { 0.5 };
+	//param["printgen"] = 1;
+	//param["netarange"] = { 0 };
+	//param["gammarange"] = { 0 };
+	//param["taurange"] = { 0.5 };
 	//param["seed"] = 1;
-	//param["forRat"] = 0.0;
-	//param["numSti"] = 2;
-	//param["numFeat"] = 2;
-	//param["propfullPrint"] = 0.8;
-	//param["attenMech"] = 2;
-	//param["maxAlpha"] = 1;
-	//param["folder"]       = "M:/Projects/CleanSarsa/Simulations/test_/";
-	//param["visitors"]["Sp1"]["alphas"] = { 1, 1 };
-	//param["visitors"]["Sp1"]["betas"] = { 0.01, 1 };
-	//param["visitors"]["Sp1"]["relAbun"] = 1;
-	//param["visitors"]["Sp1"]["reward"] = { 1, 0 };
-	//param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
-	//param["residents"]["Sp1"]["betas"] = { 1,1};
-	//param["residents"]["Sp1"]["relAbun"] = 1;
-	//param["residents"]["Sp1"]["reward"] = { 2, 0 };
+	//param["forrat"] = 0.0;
+	//param["numsti"] = 2;
+	//param["numfeat"] = 2;
+	//param["propfullprint"] = 0.8;
+	//param["attenmech"] = 2;
+	//param["maxalpha"] = 0.5;
+	//param["seqsp"] = true;
+	//param["folder"]       = "m:/projects/cleansarsa/simulations/test_/";
+
+	//param["visitors"]["sp1"]["alphas"] = { 1 };
+	//param["visitors"]["sp1"]["betas"] = { 0.01 };
+	//param["visitors"]["sp1"]["relabun"] = 1;
+	//param["visitors"]["sp1"]["reward"] = { 1, 0 };
+	//param["visitors"]["sp2"]["alphas"] = { 1, 0.01 };
+	//param["visitors"]["sp2"]["betas"] = { 0.01, 1 };
+	//param["visitors"]["sp2"]["relabun"] = 1;
+	//param["visitors"]["sp2"]["reward"] = { 1, 0 };
+	//param["residents"]["sp1"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["sp1"]["betas"] = { 1,1};
+	//param["residents"]["sp1"]["relabun"] = 1;
+	//param["residents"]["sp1"]["reward"] = { 2, 0 };
+	//param["residents"]["sp2"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["sp2"]["betas"] = { 1,1 };
+	//param["residents"]["sp2"]["relabun"] = 1;
+	//param["residents"]["sp2"]["reward"] = { 2, 0 };
 	
-	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters.json");
+	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_1.json");
 
 	// Read parameters
 	ifstream input(argv[1]);
@@ -771,7 +803,7 @@ int main(int argc, char* argv[])
 										learners[k]->update(param["attenMech"],
 											param["maxAlpha"]);
 										learners[k]->forget(double(param["forRat"]));
-										if (j > int(param["totRounds"])*param["propfullPrint"]){
+										if (j > int(param["totRounds"])*double(param["propfullPrint"])){
 											learners[k]->printIndData(
 												printTest,i,param);
 										}

@@ -2,7 +2,7 @@ library(data.table)
 library(TailRank)
 library(ggplot2)
 library(dplyr)
-
+source(here("AccFunct.R"))
 
 
 
@@ -46,7 +46,7 @@ test[20000,.(Val.02+Val.11,Val.01+Val.12)]
 
 n.dim<-1
 pvar.betabinom.clients<-data.table(value=as.factor(c(rbb(n = 10000,N = n.dim,u = 1,v = 0.01),
-                                             rbb(n = 10000,N = n.dim,u = 0.01,v = 1))),
+                                             rbb(n = 10000,N = n.dim,u = 0.2,v = 1))),
                            client=as.factor(rep(c(0,1),each=10000)))
 ggplot(data=pvar.betabinom.clients,aes(x=as.factor(client),fill=as.factor(value)))+
   geom_bar(position = "stack")+

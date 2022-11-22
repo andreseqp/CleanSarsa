@@ -12,7 +12,7 @@ fileName<-"parameters.json"
 
 #test<-fromJSON(paste(codedir,"\\test.json",sep=""))
 
-scenario<-"fullInfo2_2"
+scenario<-"fullPartialInfo2_2"
 
 param<-list(totRounds=10000,ResReward=1,VisReward=1,
             ResProb=c(0.3),
@@ -20,7 +20,7 @@ param<-list(totRounds=10000,ResReward=1,VisReward=1,
             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
             propfullPrint = 0.7,
-            alphaT=0.01,printGen=10000,seed=1, gammaRange=c(0),
+            alphaT=0.005,printGen=10000,seed=1, gammaRange=c(0),
             tauRange=c(0.5),netaRange=c(0),
             attenMech = 1,maxAlpha=0.5,
             numSti = 2, # Number of different stimuli
@@ -28,7 +28,7 @@ param<-list(totRounds=10000,ResReward=1,VisReward=1,
             folderL=paste(here("Simulations","test_"),"/",sep=""))
 
 param$visitors$Sp1$alphas<-c(1,0.01)
-param$visitors$Sp1$betas<-c(0.01,1)
+param$visitors$Sp1$betas<-c(0.2,1)
 param$visitors$Sp1$reward<-c(1,0)
 param$visitors$Sp1$relAbun=1
 param$residents$Sp1$alphas<-c(0.01,1)
@@ -44,7 +44,7 @@ check_create.dir(here("Simulations"),param = rep(scenario,1),
                  values = c(""))
 
 Param<-"attenMech"
-rangParam<-c(0,1,2)
+rangParam<-c(0,1,2,3)
 
 
 for(j in 1:length(rangParam)){

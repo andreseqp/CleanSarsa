@@ -255,6 +255,42 @@ check_create.dir<-function(folder,param,values){
   }
 }
 
+## Function to produce parameter files
 
+parFiles<-function(paramJson,Param,rangParam){
+
+  for(j in 1:length(rangParam)){
+    # if(i==11) param$printGen<-1
+    # else param$printGen<-1000
+    paramJson$folderL<-paste0(here("Simulations",scenario),"/")
+    paramJson$folder<-paramJson$folderL
+    paramJson[[Param]]<-rangParam[j]
+    fileName<-paste0("parameters_",j,".json")
+    outParam<-toJSON(paramJson,auto_unbox = TRUE,pretty = TRUE)
+    # fileName<-paste("parameters",j,".json",sep="")
+    if(file.exists(paste(paramJson$folder,fileName,sep = ''))){
+      currFile<-fromJSON(paste(paramJson$folderL,fileName,sep = ''))
+      if(sum(unlist(currFile)!=unlist(paramJson))>0){
+        # warning("You are erasing old files!! n\ Check first!!!",immediate. = TRUE)
+        # print("OLD value")
+        # print(unlist(currFile)[unlist(currFile)!=unlist(param)])
+        # print("NEW value")
+        # print(unlist(param)[unlist(currFile)!=unlist(param)])
+        # ans<-readline("Want to continue?")
+        # if(substr(ans, 1, 1) == "y"){
+        write(outParam,paste(paramJson$folderL,fileName,sep = ""))
+        # jobfile(param$folderL,listfolders[i],jobid = j)
+        # }
+      }
+    }
+    else{
+      write(outParam,paste(paramJson$folderL,fileName,sep = ""))
+      # jobfile(param$folderL,listfolders[i],jobid = j)
+    }
+    # system(paste(exedir,
+    #   gsub("\\","/",paste(simsDir,listfolders[i],fileName,sep="\\"),fixed=TRUE)
+    #   ,sep = " "))
+  }
+}
 
 
