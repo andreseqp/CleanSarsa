@@ -231,8 +231,8 @@ rbb <- function(n, N, u, v) {
 
 ## Function to check if new directories already exist---------------------------
 check_create.dir<-function(folder,param,values){
-  setwd(folder)
-  listfolders<-paste(param,values,"_",sep = "")  
+  # setwd(folder)
+  listfolders<-paste(here("Simulations",param),values,sep = "")  
   currFolders<-lapply(listfolders,dir.exists)
   if(sum(currFolders>0)){
     warning("At least one of the folders already exists \n Please check",
