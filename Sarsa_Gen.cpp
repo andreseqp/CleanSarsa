@@ -193,7 +193,7 @@ void agent::rebirth(double initVal = 0){
 	currentReward = 0;
 	cumulReward = 0;
 	for (int i=0; i < numSti; ++i) {
-		rnd::normal(0,0.5);
+		for (int j = 0; j < numFeat + 1; ++j)	 values[i][j] = initVal;
 		alphas[i] = alpha;
 	}
 }
