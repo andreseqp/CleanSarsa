@@ -1,4 +1,4 @@
-// Sarsa_Gen.cpp : Defines the entry point for the console application.
+﻿// Sarsa_Gen.cpp : Defines the entry point for the console application.
 //
 /*=============================================================================
 Sarsa_Gen.cpp
@@ -68,7 +68,7 @@ class agent													// Learning agent
 public:
 	agent();												// basic contructor
 	agent(double alphaI, double gammaI, double tauI, double netaI,
-		int _numSti, int _numFeat, double initVal);
+		int _numSti, int _numFeat, double s2RI, double initVal);
 	// constructor providing values for the learning parameters
 	~agent();																
 	// destructor not really necessary
@@ -123,13 +123,22 @@ public:
 	int numSti, numFeat;
 	// Number of estimates characterizing bhavioural options 9 for FIA
 	// Calculate new \alpha (associability) for each stimuli
-	void updateAlpha(int idAplha, double lambda, double max,int attenMech);
+	void updateAlpha(double lambda, double max,int attenMech);
 protected:
 	double values[10][5];																							
 	// array storing the estimated values of different features
 	double alphas[10];
 	// array storing the speed of learning for different stimuli dimentions
-	double delta;
+	double beta_k[10];
+	// array storing an estimate of uncertainty in predictions
+	double h_k[10];
+	// array storing an estimate of uncertainty in predictions introduced in 
+	// Sutton 1992
+	double s2_k[10];
+	// array storing an estimate of uncertainty in predictions
+	double s2R;
+	// Parameter setting the level of stochasticity
+	double delta; // Prediction error
 	int choiceT;// current choice 
 	int choiceT1;// future choice
 	double valuesT[2];
@@ -153,9 +162,11 @@ protected:
 agent::agent()			// basic constructor
 {
 	numSti = 10;
-	for (int i = 0; i < numSti;++i) {
+	s2R = 0.25;
+	for (int i = 0; i < numSti; ++i) {
 		for (auto j : values[i])	j = 0;
-		alphas[i] = 0.01;
+		alphas[i] = 0.01, beta_k[i] = log(s2R),
+			h_k[i]=0, s2_k[i]=0;
 	}
 	alpha = 0.01, gamma = 0.5, tau = 10;								
 	// Default values
@@ -168,12 +179,13 @@ agent::agent()			// basic constructor
 }
 
 agent::agent(double alphaI, double gammaI, double tauI, double netaI,
-	int _numSti,int _numFeat,double initVal = 0){
+	int _numSti,int _numFeat,double s2RI=0.25,double initVal = 0){
   // parameterized constructor
-	numSti = _numSti, numFeat = _numFeat;
+	numSti = _numSti, numFeat = _numFeat,s2R = s2RI;
 	for (int i=0; i < numSti;++i) {
 		for (int j = 0; j < numFeat+1; ++j)	values[i][j] = initVal;
-		alphas[i] = alphaI	;
+		alphas[i] = alphaI, beta_k[i] = log(s2R),
+			h_k[i] = 0, s2_k[i] = 0;
 	}
 	alpha = alphaI, gamma = gammaI, tau = tauI;
 	neta = netaI;
@@ -404,67 +416,157 @@ void agent::update(int attenMech, double maxAlpha){
 	double lambda;
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
 	delta = lambda - valuesT[choiceT];
-	for (int countStim = 0; countStim < numSti;++countStim) {
-		values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-			alphas[countStim] * delta;
+	if (attenMech != 2) {
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
+				alphas[countStim] * delta;
+		}
 	}
-	for (int countStim = 0; countStim < numSti; ++countStim) {
-		updateAlpha(countStim,lambda,maxAlpha,attenMech);
+	else{
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
+				alphas[countStim]*lambda;
+		}
 	}
+	updateAlpha(lambda,maxAlpha,attenMech);
 }
 
-void agent::updateAlpha(int idAlpha, double lambda, double max=1, int attenMech = 0) {
+
+double ReLU(double X) { return (X > 0) ? X : 0; }
+
+void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
   // implementation of mechanism of selective attention. Changes in
   // the speed of learning (\alpha)
-	double deltaTemp;
+	double deltaTemp, beta, sums2x2;
 	switch (attenMech)	{
-		case 0: // No mechanism for selective atention
+	case 0: // No mechanism for selective atention
 			break;
 	case 1:
-	  deltaTemp = abs(lambda - valuesT[choiceT] +
-		  values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]) -
-		  //alphas[0] = alpha*(abs(lambda - values[1]) -
-		  abs(lambda - values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]]);
-	  if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
-    clip_range(alphas[idAlpha], 0,max);
-	  if (isnan(alphas[idAlpha])) {
-		  wait_for_return();
-	  }
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			deltaTemp = abs(lambda - valuesT[choiceT] +
+				values[countStim][cleanOptionsT[choiceT].features[countStim]]) -
+				//alphas[0] = alpha*(abs(lambda - values[1]) -
+				abs(lambda - 
+					values[countStim][cleanOptionsT[choiceT].features[countStim]]);
+			if (deltaTemp != 0) alphas[countStim] += alpha*deltaTemp;
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
+				wait_for_return();
+			}
+		}
+		 
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
 		break;
 	case 2:
-		alphas[idAlpha] = alpha*abs(lambda - 
-			values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]])+
-			(1-alpha)*alphas[idAlpha];
-		clip_range(alphas[idAlpha], 0,max);
-		if (alphas[idAlpha] > 1) {
-			wait_for_return();
-		}
-		if (isnan(alphas[idAlpha])) {
-			wait_for_return();
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			alphas[countStim] = alpha*abs(lambda -
+				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
+				(1 - alpha)*alphas[countStim];
+			clip_range(alphas[countStim], 0, max);
+			if (alphas[countStim] > 1) {
+				wait_for_return();
+			}
+			if (isnan(alphas[countStim])) {
+				wait_for_return();
+			}
 		}
     //alphas[currState] = ;// attention increases with prediction error
     // Based on @pearce_Model_1980
     break;
-  case 3:
-    deltaTemp = alpha*values[idAlpha][cleanOptionsT[choiceT].features[idAlpha]];
-    if (deltaTemp != 0) alphas[idAlpha] += alpha*deltaTemp;
-    clip_range(alphas[idAlpha], 0,max);
-     if (isnan(alphas[idAlpha])) {
-        wait_for_return();
-     }
+    case 3:
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			deltaTemp = 
+				alpha*values[countStim][cleanOptionsT[choiceT].features[countStim]];
+			if (deltaTemp != 0) alphas[countStim] += alpha*deltaTemp;
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
+				wait_for_return();
+			}
+		}
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
 	case 4:
-	  if (deltaTemp != 0) alphas[idAlpha] += alpha*delta;
-	  clip_range(alphas[idAlpha], 0,max);
-	  if (isnan(alphas[idAlpha])) {
-	    wait_for_return();
-	  }
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			if (deltaTemp != 0) alphas[countStim] = alpha*delta +
+				(1 - alpha)*alphas[countStim];
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
+				wait_for_return();
+			}
+		}
 	  //alphas[currState] = ;// attention increases with total prediction error
 	  // Based on @pearce_Model_1980
-    break;
+	  break;
+	case 5:
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			deltaTemp = abs(lambda - valuesT[choiceT] +
+				values[countStim][cleanOptionsT[choiceT].features[countStim]]) -
+				//alphas[0] = alpha*(abs(lambda - values[1]) -
+				abs(lambda - values[countStim][cleanOptionsT[choiceT].features[countStim]]);
+			clip_range(deltaTemp, 0.05, 1);
+			beta = abs(lambda -
+				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
+				(1 - alpha)*alphas[countStim];
+			clip_range(beta, 0.5, 1);
+			if (deltaTemp != 0) alphas[countStim] = deltaTemp*beta;
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
+				wait_for_return();
+			}
+		}
+		// Based on 
+		//Pearce, J. M., and N. J. Mackintosh. 2010. Two theories of attention: 
+		//a review and a possible integration. Pages 11–39 in C. Mitchell 
+		//and M. E. Le Pelley, eds. . Oxford University Press, Oxford.
+
+		break;
+	case 6:
+		sums2x2 = 0;
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			beta_k[countStim] += alpha*delta*h_k[countStim] * 
+				cleanOptionsT[choiceT].features[countStim];  // equation (13) in Sutton 1992b
+			s2_k[countStim] = exp(beta_k[countStim]);     // equation (11) in Sutton 1992b
+			sums2x2 += s2_k[countStim] * cleanOptionsT[choiceT].features[countStim]* 
+				cleanOptionsT[choiceT].features[countStim];
+		}
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			alphas[countStim] = s2_k[countStim] * 
+				cleanOptionsT[choiceT].features[countStim] / (sums2x2 + s2R);// equation (10) in Sutton 1992b
+			h_k[countStim] = (h_k[countStim] + alphas[countStim] * delta)
+				*ReLU(1 - alphas[countStim] * 
+					cleanOptionsT[choiceT].features[countStim]); // equation (15)
+		}
+		
+		//error("argument out of range", CURRENT_FUNCTION);
+		// Based on @dayan_Learning_2000 and @sutton_Gain_1992
+		break;
+	case 7:
+		// // this is the IDBD algorithm of Sutton 1992a, as described in Sutton
+		// // 1992b (there is a difference in notation, involving whether the cue x
+		// // is part of the learning rate); note that starting value of bet needs to
+		// // be right to prevent divergence of the algorithm (bet0 = log(1/stimd)
+		// // according to Sutton 1992b)
+		sums2x2 = 0;
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			beta_k[countStim] += alpha*delta*h_k[countStim] *
+				cleanOptionsT[choiceT].features[countStim];  
+			// equation (13) in Sutton 1992b
+			alphas[countStim] = std::exp(beta_k[countStim])*
+				cleanOptionsT[choiceT].features[countStim];  
+			// eq. (17) in Sutton 1992b, cf (4) in Sutton 1992a
+			if (alphas[countStim] == INFINITY)
+				cout << "Infinity value" << endl;
+		}
+		for (int countStim = 0; countStim < numSti; ++countStim) {
+			// from eq. (20) in Sutton 1992b, cf (5) or fig 2 in Sutton 1992a
+			h_k[countStim] = h_k[countStim] *
+				ReLU(1 - alphas[countStim] *
+					cleanOptionsT[choiceT].features[countStim]) +
+				alphas[countStim] * delta;
+		}
+		// Based on @dayan_Learning_2000 and @sutton_Gain_1992
+		break;
   default:
     break;
   }
@@ -504,7 +606,6 @@ double agent::softMax(double &value1, double &value2) {
 }
 
 
-
 class PIATyp1 :public agent{				// Partially Informed Agent (PIA)	
 	public:
 	PIATyp1(double alphaI, double gammaI, double tauI, double netaI,
@@ -521,6 +622,7 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 			valuesT1[0] += values[countStim][cleanOptionsT1[0].features[countStim]];
 			valuesT1[1] += values[countStim][cleanOptionsT1[1].features[countStim]];
 		}
+
 	}
 	virtual void choice(){
 		choiceT1 = rnd::bernoulli(softMax(valuesT1[1], valuesT1[0]));
@@ -684,58 +786,58 @@ int main(int argc, char* argv[])
 	// input parameters provided by a JSON file with the following
 	// structure:
 
-	//json param;
-	//param["totrounds"] = 5000;
-	//param["resreward"] = 1;
-	//param["visreward"] = param["resreward"];
-	//param["resprob"] =  0.3;
-	//param["visprob"] =  0.3;
-	//param["resprobleav"] = 1;
-	//param["visprobleav"] = 1;
-	//param["negativerew"] = -0.5;
-	//param["experiment"] = false;
-	//param["inbr"] = 0.0;
-	//param["outbr"] = 0;
-	//param["trainingrep"] = 30;//30
-	//param["alphat"] = 0.005;
-	//param["numlearn"] = 1;
-	//param["printgen"] = 1;
-	//param["netarange"] = { 0 };
-	//param["gammarange"] = { 0 };
-	//param["taurange"] = { 0.5 };
-	//param["seed"] = 1;
-	//param["forrat"] = 0.0;
-	//param["numsti"] = 2;
-	//param["numfeat"] = 2;
-	//param["propfullprint"] = 0.8;
-	//param["attenmech"] = 2;
-	//param["maxalpha"] = 0.5;
-	//param["seqsp"] = true;
-	//param["folder"]       = "m:/projects/cleansarsa/simulations/test_/";
+	json param;
+	param["totRounds"] = 1000;
+	param["ResReward"] = 1;
+	param["VisReward"] = param["resreward"];
+	param["ResProb"] =  0.3;
+	param["VisProb"] =  0.3;
+	param["ResProbLeav"] = 1;
+	param["VisProbLeav"] = 1;
+	param["negativeRew"] = -0.5;
+	param["experiment"] = false;
+	param["inbr"] = 0.0;
+	param["outbr"] = 0;
+	param["trainingRep"] = 10;//30
+	param["alphaT"] = 0.005;
+	param["numlearn"] = 1;
+	param["printGen"] = 1;
+	param["netaRange"] = { 0 };
+	param["gammaRange"] = { 0 };
+	param["tauRange"] = { 0.5 };
+	param["seed"] = 1;
+	param["forRat"] = 0.0;
+	param["numSti"] = 2;
+	param["numFeat"] = 2;
+	param["propfullPrint"] = 0.8;
+	param["attenMech"] = 7;
+	param["maxAlpha"] = 0.5;
+	param["seqSp"] = true;
+	param["folder"]       = "m:/Projects/CleanSarsa/Simulations/test_/";
 
-	//param["visitors"]["sp1"]["alphas"] = { 1 };
-	//param["visitors"]["sp1"]["betas"] = { 0.01 };
-	//param["visitors"]["sp1"]["relabun"] = 1;
-	//param["visitors"]["sp1"]["reward"] = { 1, 0 };
-	//param["visitors"]["sp2"]["alphas"] = { 1, 0.01 };
-	//param["visitors"]["sp2"]["betas"] = { 0.01, 1 };
-	//param["visitors"]["sp2"]["relabun"] = 1;
-	//param["visitors"]["sp2"]["reward"] = { 1, 0 };
-	//param["residents"]["sp1"]["alphas"] = { 0.5 , 1 };
-	//param["residents"]["sp1"]["betas"] = { 1,1};
-	//param["residents"]["sp1"]["relabun"] = 1;
-	//param["residents"]["sp1"]["reward"] = { 2, 0 };
-	//param["residents"]["sp2"]["alphas"] = { 0.5 , 1 };
-	//param["residents"]["sp2"]["betas"] = { 1,1 };
-	//param["residents"]["sp2"]["relabun"] = 1;
-	//param["residents"]["sp2"]["reward"] = { 2, 0 };
+	param["visitors"]["Sp1"]["alphas"] = { 1 };
+	param["visitors"]["Sp1"]["betas"] = { 0.01 };
+	param["visitors"]["Sp1"]["relAbun"] = 1;
+	param["visitors"]["Sp1"]["reward"] = { 1, 0 };
+	param["visitors"]["Sp2"]["alphas"] = { 1, 0.01 };
+	param["visitors"]["Sp2"]["betas"] = { 0.01, 1 };
+	param["visitors"]["Sp2"]["relAbun"] = 1;
+	param["visitors"]["Sp2"]["reward"] = { 1, 0 };
+	param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
+	param["residents"]["Sp1"]["betas"] = { 1,1};
+	param["residents"]["Sp1"]["relAbun"] = 1;
+	param["residents"]["Sp1"]["reward"] = { 2, 0 };
+	param["residents"]["Sp2"]["alphas"] = { 0.5 , 1 };
+	param["residents"]["Sp2"]["betas"] = { 1,1 };
+	param["residents"]["Sp2"]["relAbun"] = 1;
+	param["residents"]["Sp2"]["reward"] = { 2, 0 };
 	
 	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_1.json");
 
 	// Read parameters
-	ifstream input(argv[1]);
+	/*ifstream input(argv[1]);
 	if (input.fail()) { cout << "JSON file failed" << endl; }
-	json param = nlohmann::json::parse(input);
+	json param = nlohmann::json::parse(input);*/
 	//
 	//// Pass on parameters from JSON to c++
 	//int const totRounds = param["totRounds"];

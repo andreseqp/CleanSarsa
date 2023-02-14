@@ -294,3 +294,12 @@ parFiles<-function(paramJson,Param,rangParam){
 }
 
 
+
+SumCorrVals <- function(data, vals) {
+  stimvals <- Map(function(V, levels) {
+    match(paste0(sub("Stim[0-9]+\\.([0-9]+)", "Val.\\1", V), levels),
+          names(data))
+  }, setNames(nm = vals), lapply(vals, function(z) data[[z]]))
+  Reduce(`+`, lapply(stimvals, function(z) as.data.frame(data)[cbind(seq_along(z), z)]))
+}
+

@@ -103,7 +103,7 @@ client::client(client_ty type, std::vector<double> alphas,
 		//	//clip_range(secRed, 0, 255), clip_range(secGreen, 0, 255), clip_range(secBlue, 0, 255);
 		//}
 		if (rew[1] > 0) {
-			reward = features[0] + rnd::normal(0, rew[1]);
+			reward = rew[0] + rnd::normal(0, rew[1]);
 			clip_low(reward, 0);
 		}
 		else reward = rew[0];
@@ -140,7 +140,7 @@ void client::rebirth(client_ty type=absence,
 		//	//clip_range(secRed, 0, 255), clip_range(secGreen, 0, 255), clip_range(secBlue, 0, 255);
 		//}
 		if (rew[1] > 0) {
-			reward = features[0] + rnd::normal(0, rew[1]);
+			reward = rew[0] + rnd::normal(0, rew[1]);
 			clip_low(reward, 0);
 		}
 		else reward = rew[0];

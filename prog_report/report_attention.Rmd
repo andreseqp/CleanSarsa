@@ -21,7 +21,7 @@ library(here)
 
 ## The model
 
-We asses the effect of the dynamics of associability in the learning process by implementing a reinforcement learning model where the value of $\alpha$ (speed of learning) changes according a different sets of rules proposed in the psychology literature. The model assumes that agent use different features of the object they are presented with to estimate a value for each object. Furthermore, they use the estimated value of the object to choose among them when these are presented together. We assume that the features characterizing objects can be classified in different perceptual dimensions. Thus, the combination of features present in an object for all the perceptual dimensions can potentially be used to discriminate among different type of objects. In the model we control the feature composition of the different objects, so we can change how informative they are in the discrimination task. 
+We asses the effect of the dynamics of associability in the learning process by implementing a reinforcement learning model where the value of $\alpha$ (speed of learning) changes according a different sets of rules proposed in the psychology literature. The model assumes that agents use different features of the object they are presented with to estimate a value for each object. Furthermore, they use the estimated value of the object to choose among them when these are presented together. We assume that the features characterizing objects can be classified in different perceptual dimensions. Thus, the combination of features present in an object for all the perceptual dimensions can potentially be used to discriminate among different type of objects. In the model we control the feature composition of the different objects, so we can change how informative they are in the discrimination task. 
 
 For illustration purposes, let's say we have two objects denoted by the index $k$. Each object can be characterized by the feature vector $f$ of length $m$, where each entry of the vector represents the state of a stimulus dimension. $m$ is then the number of stimuli dimensions available for the discrimination task. We further assume that these stimuli states are a discrete variable. Where the value $0$ represents the absence of such stimuli, and all the other values each a different state. 
 
@@ -60,13 +60,13 @@ where $V_n^t$ is the estimated value of object $n$ at time $t$, and $\tau$ is a 
 ### Mechanisms of selective attention
 
 To assess the effect of changes in the speed of learning as a form of selective attention, we test three different scenarios. First as a benchmark, we test a scenario where learning speed remains constant throughout the trial. We then evaluate the effect of changes in the speed of learning dictated by the 
-Mackintosh @mackintosh_Theory_1975 and Pearce and Hall @pearce_Model_1980 rules. The rules described here determined the changes in the speed of learning in the simulations as long as the rate does not go bellow 0 or above 0.5, otherwise the rate was set to the corresponding limit. This was done because very high values can make the learning algorithm unstable, and lead to erroneous estimation.    
+ @mackintosh_Theory_1975 and  @pearce_Model_1980 rules. The rules described here determined the changes in the speed of learning in the simulations as long as the rate does not go bellow 0 or above 0.5, otherwise the rate was set to the corresponding limit. This was done because very high values can make the learning algorithm unstable, and lead to erroneous estimation.    
 
 #### The Mackintosh update
 
 @mackintosh_Theory_1975 proposed a model of attentional dynamics, where the
 central idea is that stimuli which are the best predictors of reward get an
-increase in the attention they enjoy during the learning process. Conversely, stimuli that are bad predictors, compared to all other, get a decrement in attention. Formally,
+increase in the attention they enjoy during the learning process. Conversely, stimuli that are bad predictors, compared to all other, get a reduction in attention. Formally,
 @mackintosh_Theory_1975 defined the attentional update as
 
 
@@ -112,6 +112,35 @@ Following a notation more in line with the current model, we implemented the
 $$
 \alpha_i^{t+1} = \hat{\alpha}|R^t -a_{ij}^t|+(1-\hat{\alpha})\alpha_i^t
 $$
+
+### Mackintosh 2
+
+The idea of Mackintosh is that more attention is paid to features that are better predictors of reward. However, the classic implementation of this idea includes 
+in the update rule a reduction in attention to all other features that are not the best predictor of reward (ref).This leads to individuals focusing their learning 
+in only one of the available features, rather distributing their attention in proportion how well features predict reward. In order to allow for a continuous 
+distribution of attention among the different features @esber_Reconciling_2011 propose a alternative implementation of Mackintosh's rule where the speed of learning in the next time step is simply given by the estimated associative 
+value of the focal feature. In our model, we implement this by setting the speed of learning for stimulus $i$ as the estimated reward of the last feature from that stimulus:
+
+$$
+\alpha_i^{t+1} = \hat{\alpha}S_{ij}^t
+$$
+
+### Pearce and Hall 2
+
+Just as the idea of Mackintosh, Pearce and Hall's idea has been implemented in different ways. One important difference between alternative implementations is whether the update is dependent on the total prediction error ($\delta$), or on the prediction error triggered by just the focal stimulus dimension 
+[@lepelley_Role_2004]. Thus, in our model we implement a second version of Pearce  and Hall's idea, in the second implementation we let the be driven by the total prediction error, formally:
+
+$$
+\alpha_i^{t+1} = \hat{\alpha}\delta^t+(1-\hat{\alpha}\alpha_i^{t})
+$$
+
+### Hybrid model
+
+Given the different phenomena that Mackintosh's, as well as Pearce and Hall's,  
+ideas fit from learning experiments, a different set of models combine both of 
+the ideas in an attempt to unify the mechanisms of attentional update. One of such models proposed by @pearce_Two_2010, combines the two ideas by having to different terms for the speed of learning, whose product determine the realized speed. Each one of these terms corresponds to one of the two ideas. Following this hybrid model we implement a combination of Mackintosh and Pearce and Hall's ideas bu letting the speed of learning be the product of the speed of learning computed in the first two implementations.
+
+
 All the source code necessary to run de simulations can be found at *https://github.com/andreseqp/CleanSarsa*. 
 
 ## Preliminary results
@@ -125,6 +154,7 @@ Here we assume that objects are characterized by two features, each from differe
 ```{r}
 library(here)
 library(data.table)
+options(datatable.print.class = TRUE)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -141,21 +171,20 @@ plotInterv<-500
 
 scenario<-"fullInfo2_2_"
 
-params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
-param.base<-list(totRounds=10000,ResReward=1,VisReward=1,
-            ResProb=c(0.3),
-            VisProb=c(0.3),
-            ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
-            inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
-            propfullPrint = 0.7,
-            alphaT=0.005,printGen=1,seed=1, gammaRange=I(c(0)),
-            tauRange=c(0.5),netaRange=c(0),
-            attenMech = 1,maxAlpha=0.5,
-            seqSp = FALSE,
-            numSti = 2, # Number of different stimuli
-            numFeat = 2, # Number of different features for each stimuli
-            folderL=paste(here("Simulations","test_"),"/",sep=""))
+# param.base<-list(totRounds=10000,ResReward=1,VisReward=1,
+#             ResProb=c(0.3),
+#             VisProb=c(0.3),
+#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+#             propfullPrint = 0.7,
+#             alphaT=0.1,printGen=1,seed=1, gammaRange=I(c(0)),
+#             tauRange=c(0.5),netaRange=c(0),
+#             attenMech = 1,maxAlpha=0.5,
+#             seqSp = FALSE,
+#             numSti = 2, # Number of different stimuli
+#             numFeat = 2, # Number of different features for each stimuli
+#             folderL=paste(here("Simulations","test_"),"/",sep=""))
 # 
 # param<-param.base
 # 
@@ -169,14 +198,18 @@ param.base<-list(totRounds=10000,ResReward=1,VisReward=1,
 # param$residents$Sp1$reward<-c(2,0)
 # 
 Param<-"attenMech"
-rangParam<-c(0,1,2,3,4)
-labAtt<-c("Rescola-Wagner","Mackintosh","Pearce-Hall","Mackintosh2","Pearce-Hall2")
+rangParam<-c(0,1,2,3,4,5,6,7)[8]
+labAtt<-c("Rescola-Wagner","Mackintosh","Pearce-Hall","Mackintosh2",
+          "Pearce-Hall2","Hybrid","K1","IBDB")[8]
 # 
-# # check_create.dir(here("Simulations"),param = rep(scenario,1),
-# #                  values = c(""))
+# check_create.dir(here("Simulations"),param = rep(scenario,1),
+#                  values = c(""))
+# 
 # parFiles(paramJson = param,rangParam = rangParam,Param = Param)
 # 
 # Sys.setenv(scen=scenario,nodes=length(rangParam))
+
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
 ```
 
@@ -193,7 +226,8 @@ labAtt<-c("Rescola-Wagner","Mackintosh","Pearce-Hall","Mackintosh2","Pearce-Hall
 
 # load test data
 list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
-  grep(pattern = "PIA",value = TRUE) %>% grep(pattern = "alph0.005",value = TRUE)
+  grep(pattern = "PIA",value = TRUE) 
+# %>% grep(pattern = "alph0.005",value = TRUE)
 
 rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
   tmpData<-fread(file)
@@ -214,12 +248,14 @@ rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
                 fcase(Stim2.1==0,Val.10,
                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
 
-rawData[,AttMech:=factor(AttMech,levels = c(0,1,2,3,4),
+rawData[,AttMech:=factor(AttMech,levels = rangParam,
                       labels = labAtt)]
 
 rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
                                                        "Object 2","absence")),
               Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Choice=factor(Choice,levels = c(0,1,2),labels=c("Object 1",
                                                        "Object 2","absence")),
               Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
               Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
@@ -257,7 +293,7 @@ PAAtimeInt<-do.call(
   rbind,lapply(
     getFilelist(simsDir,fullNam = TRUE)$PIA,
     file2timeInter,"AttMech",interV=interv))
-PAAtimeInt[,AttMech:=factor(AttMech,levels = c(0,1,2,3,4),
+PAAtimeInt[,AttMech:=factor(AttMech,levels = rangParam,
                             labels = labAtt)]
 
 value.obj.plot<-ggplot(rawData[ Age %% plotInterv ==0],
@@ -281,16 +317,18 @@ timeInterv.plot<-ggplot(PAAtimeInt,aes(x=Interv,y=Prob.RV.V,color=AttMech))+
                  y="Frequency of \n incorrect choices",
                  x=paste0("Interval of ",interv," trials"))+
   geom_hline(yintercept = soft_max(1,2,0.5),color="grey")+
-  theme_classic()+  
-  theme(legend.title = element_text(size = 5), 
+  theme_classic()+
+  theme(legend.title = element_text(size = 5),
              legend.text = element_text(size = 5))
 
 ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 0.1 )
+
 
 ```
 
 ```{r}
 lastQuarter<-rawData[Age>max(Age)*0.4]
+lastQuarter<-lastQuarter[,Correct:=(Choice=="Object 1")]
 heteroChoice<-lastQuarter[(Client1=="Object 1")&(Client2=="Object 2")]
 heteroChoice2<-lastQuarter[(Client1=="Object 2")&(Client2=="Object 1")]
 heteroChoice2[,`:=`(Client1=Client2,Client2=Client1,Stim1.0=Stim2.0,
@@ -300,7 +338,7 @@ heteroChoice<-rbind(heteroChoice,heteroChoice2)
 
 
 
-distrChoices<-heteroChoice[,mean(Choice),
+distrChoices<-heteroChoice[,mean(Correct),
                            by=.(Stim1.0,Stim1.1,Stim2.0,Stim2.1,Training,
                                 AttMech)]
 
@@ -312,18 +350,20 @@ distrChoicesSum<-distrChoices[,.(max=fivenum(V1)[4],min=fivenum(V1)[2]),
 heteroChoice[,Choice:=factor(Choice,levels = c(0,1),labels = c(1,2))]
 
 ggplot(heteroChoice,aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
-       fill=as.factor(Choice)))+
+       fill=as.factor(Correct)))+
   geom_bar(position = "fill")+
-  geom_hline(yintercept = soft_max(x = 1,2,t = 0.5))+
+  geom_hline(yintercept = soft_max(x = params$residents$Sp1$reward[1],
+                                   params$visitors$Sp1$reward[1],
+                                   t = 0.5))+
   geom_text(aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
                 label = ..count..),inherit.aes = FALSE,
-            stat = "count", position = "fill",vjust=1.5,size=2)+
+            stat = "count", position = "fill",vjust=12,size=2)+
   geom_linerange(data = distrChoicesSum,aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
                 ymin=min,ymax=max,
                 group=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1)),inherit.aes = FALSE)+
   facet_wrap(~AttMech)+
   scale_fill_manual(values = colorValues)+
-  labs(x="Stimuli combinations",y="Frequency",fill="Chosen object")+
+  labs(x="Stimuli combinations",y="Frequency",fill="Correct object")+
   theme_classic()+
   theme(legend.position = "top",axis.text.x = 
           element_text(angle = 85, vjust =0.3,hjust =0.3))
@@ -368,36 +408,36 @@ ggplot(data = Alphas.long[ Age %% plotInterv ==0],aes(x=Age,y=value,color=Stimul
 ```
 
 ```{r}
-Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
-                                       "Client2","Stim1.0","Stim1.1",
-                                       "Stim2.0","Stim2.1"),
-                   measure.vars = patterns("alpha.*"),
-                   variable.name = "Stimulus")
- tmp.1<-Alphas.long[Training==1]
-
- age2plot<-100
- 
- ggarrange(
-   tmp.1[Age<age2plot] %>%
-     ggplot(aes(x=Age,y = value,color=Stimulus))+
-     facet_wrap(~AttMech,nrow = 1)+
-     geom_path()
-     # ylim(0.12,0.5)
-   # ,
-   # tmp.1[Age<age2plot] %>%
-   #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
-   #   geom_point()+
-   #   # facet_wrap(~AttMech,nrow = 1)+
-   #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
-   #              shape=2),
-   # ncol = 1
- )
+# Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
+#                                        "Client2","Stim1.0","Stim1.1",
+#                                        "Stim2.0","Stim2.1"),
+#                    measure.vars = patterns("alpha.*"),
+#                    variable.name = "Stimulus")
+#  tmp.1<-Alphas.long[Training==2]
+# 
+#  age2plot<-1000
+# 
+#  ggarrange(
+#    tmp.1[Age<age2plot] %>%
+#      ggplot(aes(x=Age,y = value,color=Stimulus))+
+#      facet_wrap(~AttMech,nrow = 1)+
+#      geom_path()
+#      # ylim(0.12,0.5)
+#    # ,
+#    # tmp.1[Age<age2plot] %>%
+#    #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
+#    #   geom_point()+
+#    #   # facet_wrap(~AttMech,nrow = 1)+
+#    #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
+#    #              shape=2),
+#    # ncol = 1
+#  )
  
 ```
 
 ```{r, fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with full information.'}
 ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
-                            Training<4],
+                            Training<5],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
@@ -557,30 +597,30 @@ ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 
 ```
 
 ```{r}
-Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
-                                       "Client2","Stim1.0","Stim1.1",
-                                       "Stim2.0","Stim2.1"),
-                   measure.vars = patterns("alpha.*"),
-                   variable.name = "Stimulus")
- tmp.1<-Alphas.long[Training==1]
-
- age2plot<-200
- 
- ggarrange(
-   tmp.1[Age<age2plot] %>%
-     ggplot(aes(x=Age,y = value,color=Stimulus))+
-     facet_wrap(~AttMech,nrow = 1)+
-     geom_path()
-     # ylim(0.12,0.5)
-   # ,
-   # tmp.1[Age<age2plot] %>%
-   #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
-   #   geom_point()+
-   #   # facet_wrap(~AttMech,nrow = 1)+
-   #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
-   #              shape=2),
-   # ncol = 1
- )
+# Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
+#                                        "Client2","Stim1.0","Stim1.1",
+#                                        "Stim2.0","Stim2.1"),
+#                    measure.vars = patterns("alpha.*"),
+#                    variable.name = "Stimulus")
+#  tmp.1<-Alphas.long[Training==1]
+# 
+#  age2plot<-200
+# 
+#  ggarrange(
+#    tmp.1[Age<age2plot] %>%
+#      ggplot(aes(x=Age,y = value,color=Stimulus))+
+#      facet_wrap(~AttMech,nrow = 1)+
+#      geom_path()
+#      # ylim(0.12,0.5)
+#    # ,
+#    # tmp.1[Age<age2plot] %>%
+#    #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
+#    #   geom_point()+
+#    #   # facet_wrap(~AttMech,nrow = 1)+
+#    #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
+#    #              shape=2),
+#    # ncol = 1
+#  )
  
 ```
 
@@ -675,7 +715,7 @@ ggplot(data = Alphas.long[Age%%plotInterv==0],aes(x=Age,y=value,color=Stimulus))
 
 ```{r, fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
 ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
-                            Training<4],
+                            Training<5],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
@@ -708,7 +748,7 @@ scenario<-"Partial2Info2_2_"
 # #                  values = c(""))
 # 
 # parFiles(paramJson = param,rangParam = rangParam,Param = Param)
-
+# 
 # Sys.setenv(scen=scenario,nodes=length(rangParam))
 
 params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
@@ -1157,7 +1197,7 @@ ggplot(data = Alphas.long[Age%%interv==0],aes(x=Age,y=value,color=Stimulus))+
 
 ```{r, , fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
 ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
-                            Training<4],
+                            Training<5],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
@@ -1181,14 +1221,14 @@ scenario<-"fullPartialInfoDev2_2_"
 # 
 # param[["seqSp"]]<-TRUE
 # 
-# # param$visitors$Sp1$alphas <- I(0.1)
-# # param$visitors$Sp1$betas<-I(c(1))
-# # param$visitors$Sp1$reward<-c(1,0)
-# # param$visitors$Sp1$relAbun=1
-# # param$residents$Sp1$alphas<-I(c(1))
-# # param$residents$Sp1$betas<-I(c(0.1))
-# # param$residents$Sp1$relAbun=1
-# # param$residents$Sp1$reward<-c(2,0)
+# param$visitors$Sp1$alphas <- I(0.1)
+# param$visitors$Sp1$betas<-I(c(1))
+# param$visitors$Sp1$reward<-c(1,0)
+# param$visitors$Sp1$relAbun=1
+# param$residents$Sp1$alphas<-I(c(1))
+# param$residents$Sp1$betas<-I(c(0.1))
+# param$residents$Sp1$relAbun=1
+# param$residents$Sp1$reward<-c(2,0)
 # 
 # param$visitors$Sp1$alphas <- I(0.2)
 # param$visitors$Sp1$betas<-I(c(1))
@@ -1199,14 +1239,14 @@ scenario<-"fullPartialInfoDev2_2_"
 # param$residents$Sp1$relAbun=1
 # param$residents$Sp1$reward<-c(2,0)
 # 
-# # param$visitors$Sp2$alphas<-c(0.1,1)
-# # param$visitors$Sp2$betas<-c(1,0.01)
-# # param$visitors$Sp2$reward<-c(1,0)
-# # param$visitors$Sp2$relAbun=1
-# # param$residents$Sp2$alphas<-c(1,0.3)
-# # param$residents$Sp2$betas<-c(0.1,1)
-# # param$residents$Sp2$relAbun=1
-# # param$residents$Sp2$reward<-c(2,0)
+# param$visitors$Sp2$alphas<-c(0.1,1)
+# param$visitors$Sp2$betas<-c(1,0.01)
+# param$visitors$Sp2$reward<-c(1,0)
+# param$visitors$Sp2$relAbun=1
+# param$residents$Sp2$alphas<-c(1,0.3)
+# param$residents$Sp2$betas<-c(0.1,1)
+# param$residents$Sp2$relAbun=1
+# param$residents$Sp2$reward<-c(2,0)
 # 
 # param$visitors$Sp2$alphas<-c(0.2,1)
 # param$visitors$Sp2$betas<-c(1,0.01)
@@ -1216,11 +1256,11 @@ scenario<-"fullPartialInfoDev2_2_"
 # param$residents$Sp2$betas<-c(0.2,1)
 # param$residents$Sp2$relAbun=1
 # param$residents$Sp2$reward<-c(2,0)
-
-
-# check_create.dir(here("Simulations"),param = rep(scenario,1),
-#                  values = c(""))
-
+# 
+# 
+# # check_create.dir(here("Simulations"),param = rep(scenario,1),
+# #                  values = c(""))
+# 
 # parFiles(paramJson = param,rangParam = rangParam,Param = Param)
 # 
 # Sys.setenv(scen=scenario,nodes=length(rangParam))
@@ -1267,14 +1307,44 @@ rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
 rawData[,AttMech:=factor(AttMech,levels = rangParam,
                       labels = labAtt)]
 
+
+# numSti <- 2
+# numFeat <- 2
+# 
+# rawData[
+#   ,paste0("Val_Client", 1:2) := as.data.table(
+#     colSums(
+#       aperm(
+#         array(
+#           unlist(rawData[,.SD , .SDcols = grep("Val.", 
+#                                                names(rawData), value = TRUE)])[
+#             1:.N + (unlist(rawData[,.SD , 
+#                                 .SDcols = grep("Stim", names(rawData), 
+#                                 value = TRUE)]) + 
+#                       rep(c(0, numFeat + 1), each = .N))*.N
+#           ],
+#           c(.N, numSti, 2)
+#         ),
+#         c(2, 1, 3)
+#       )
+#     )
+#   )
+# ]
+
+
+stims <- grep("Stim.*0", names(rawData), value = TRUE)
+stims <- split(stims, sub("\\..*", "", stims))
+names(stims) <- sub(".*([0-9]+)$", "Val.Client0\\1", names(stims))
+
+rawData[, names(stims) := lapply(stims, SumCorrVals, data = .SD)]
+
 rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
                                                        "Object 2","absence")),
               Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
                                                        "Object 2","absence")),
               Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
               Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
-              half=factor(ifelse(Age<max(Age)/2,"before","after"))
-)]
+              half=factor(ifelse(Age<max(Age)/2,"before","after")))]
 
 ggarrange(
   ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
@@ -1475,7 +1545,7 @@ scenario<-"PartialInfo5_2_"
 # 
 # param$numSti<-5
 # param$numFeat<-2
-#  
+# 
 # param$visitors$Sp1$alphas <- c(0.2,1,0.2,1,0.2)
 # param$visitors$Sp1$betas  <- c(1,0.2,1,0.2,1)
 # param$visitors$Sp1$reward<-c(1,0)
@@ -1657,6 +1727,34 @@ ggarrange(value.obj.plot,timeInterv.plot,ncol = 2,labels = c('a','b'),
 
 ```
 
+```{r}
+# Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
+#                                        "Client2","Stim1.0","Stim1.1",
+#                                        "Stim2.0","Stim2.1"),
+#                    measure.vars = patterns("alpha.*"),
+#                    variable.name = "Stimulus")
+#  tmp.1<-Alphas.long[Training==2]
+# 
+#  age2plot<-100
+#  
+#  ggarrange(
+#    tmp.1[AttMech=="Pearce-Hall"& Age<age2plot] %>%
+#      ggplot(aes(x=Age,y = value,color=Stimulus))+
+#      facet_wrap(~AttMech,nrow = 1)+
+#      geom_path()
+#      # ylim(0.12,0.5)
+#    # ,
+#    # tmp.1[Age<age2plot] %>%
+#    #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
+#    #   geom_point()+
+#    #   # facet_wrap(~AttMech,nrow = 1)+
+#    #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
+#    #              shape=2),
+#    # ncol = 1
+#  )
+ 
+```
+
 ```{r,fig.height=10}
 
 lastQuarter<-rawData
@@ -1787,7 +1885,7 @@ scenario<-"Redouan1Dev2_2_"
 # 
 # param$numSti<-2
 # param$numFeat<-2
-#  
+# 
 # param$visitors$Sp1$alphas <- c(0.0001,1)
 # param$visitors$Sp1$betas  <- c(1,0.0001)
 # param$visitors$Sp1$reward<-  c(1,0)
@@ -2043,7 +2141,7 @@ ggplot(data = Alphas.long[Age%%plotInterv==0],aes(x=Age,y=value,color=Stimulus))
 
 ```{r, , fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
 ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
-                            Training<4],
+                            Training<5],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
@@ -2064,7 +2162,7 @@ scenario<-"Redouan2Dev2_2_"
 # 
 # param$numSti<-2
 # param$numFeat<-2
-#  
+# 
 # param$visitors$Sp1$alphas <- c(0.0001,1)
 # param$visitors$Sp1$betas  <- c(1,1)
 # param$visitors$Sp1$reward<-  c(1,0)
@@ -2315,7 +2413,7 @@ ggplot(data = Alphas.long[Age%%plotInterv==0],aes(x=Age,y=value,color=Stimulus))
 
 ```{r, , fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
 ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
-                            Training<4],
+                            Training<5],
        aes(x=Age,y=value,color=Stimulus))+
   geom_step()+
   facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
@@ -2336,7 +2434,7 @@ scenario<-"Redouan3Dev3_2_"
 # 
 # param$numSti<-3
 # param$numFeat<-2
-#  
+# 
 # param$visitors$Sp1$alphas <- c(0.0001,1,1)
 # param$visitors$Sp1$betas  <- c(1,1,1)
 # param$visitors$Sp1$reward<-  c(1,0)
@@ -2616,7 +2714,7 @@ scenario<-"Redouan4Dev2_2_"
 # 
 # param$numSti<-2
 # param$numFeat<-2
-#  
+# 
 # param$visitors$Sp1$alphas <- c(0.0001,1)
 # param$visitors$Sp1$betas  <- c(1,0.0001)
 # param$visitors$Sp1$reward<-  c(1,0)
@@ -2881,13 +2979,12 @@ library(jsonlite)
 source(here("AccFunct.R"))
 scenario<-"FullPartial2Info2_2_"
 
-# dbb(0,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1])
-# dbb(1,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1])
-# dbb(0,1,params$visitors$Sp1$alphas[2],params$visitors$Sp1$betas[2])
-# 
+
 # param<-param.base
 # 
 # param$maxAlpha<-0.3
+# 
+# param$alphaT<-0.001
 # 
 # param[["seqSp"]]<-FALSE
 # 
@@ -2904,8 +3001,8 @@ scenario<-"FullPartial2Info2_2_"
 # param$residents$Sp1$reward<-c(3,0)
 # 
 # 
-# check_create.dir(here("Simulations"),param = rep(scenario,1),
-#                  values = c(""))
+# # check_create.dir(here("Simulations"),param = rep(scenario,1),
+# #                  values = c(""))
 # 
 # parFiles(paramJson = param,rangParam = rangParam,Param = Param)
 # 
@@ -2933,7 +3030,7 @@ Here one of the stimuli  contains information to distinguish the two object type
 # load test data
 list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
   grep(pattern = "PIA",value = TRUE) %>%
-  grep(pattern = "alph0.005",value = TRUE)
+  grep(pattern = "alph0.001",value = TRUE)
 
 rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
   tmpData<-fread(file)
@@ -2942,27 +3039,67 @@ rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
   tmpData[,AttMech:=parVal]
   return(tmpData)
 }))
-rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
-          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
 
-rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
-                               Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
-                fcase(Stim1.1==0,Val.10,
-                      Stim1.1==1,Val.11,Stim1.1==2,Val.12),
-              Val.Clien2=fcase(Stim2.0==0,Val.00,
-                               Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
-                fcase(Stim2.1==0,Val.10,
-                      Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+stims<-list(
+  Val.Client10=c("Stim1.0"),
+            Val.Client11=c("Stim1.1"),
+            Val.Client20=c("Stim2.0"),
+            Val.Client21=c("Stim2.1"),
+            Val.Client1=c("Stim1.0","Stim1.1"),
+            Val.Client2=c("Stim2.0","Stim2.1")
+            )
+# 
+# rawData[, names(stims) := lapply(stims, SumCorrVals, data = .SD)]
+
+fun <- function(data, vals) {
+  stimvals <- Map(function(V, levels) {
+    match(paste0(sub("Stim[0-9]+\\.([0-9]+)", "Val.\\1", V), levels),
+          names(data))
+  }, setNames(nm = vals), lapply(vals, function(z) data[[z]]))
+  Reduce(`+`, lapply(stimvals, function(z) as.data.frame(data)[cbind(seq_along(z), z)]))
+}
+
+
+rawData[, names(stims) := lapply(stims, fun, data = .SD)]
+
+# rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+#           lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+# rawData[,(grep("Stim.*",names(rawData),value = TRUE)):=
+#           lapply(.SD,as.numeric),.SDcols=patterns("Stim.*")]
+
+# rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
+#                                Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+#                 fcase(Stim1.1==0,Val.10,
+#                       Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+#               Val.Client2=fcase(Stim2.0==0,Val.00,
+#                                Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+#                 fcase(Stim2.1==0,Val.10,
+#                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+
+
 rawData[,AttMech:=factor(AttMech,levels = rangParam,
                       labels = labAtt)]
+
+# stims <- grep("Stim.*", names(rawData), value = TRUE)
+# stims <- split(stims, sub("\\..*", "", stims))
+# names(stims) <- sub(".*([0-9]+)$", "Val.Client\\1", names(stims))
+# stims
+
+
+
+
 
 rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
                                                        "Object 2","absence")),
               Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
                                                        "Object 2","absence")),
+              Choice=factor(Choice,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
               Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
               Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
 )]
+
 ggarrange(
   ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
     geom_bar(position="fill")+
@@ -2976,6 +3113,7 @@ ggarrange(
     theme_classic(),common.legend=T
     
 )
+
 ```
 
 
@@ -3028,31 +3166,466 @@ ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 
 
 ```
 
-```{r}
-Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
-                                       "Client2","Stim1.0","Stim1.1",
-                                       "Stim2.0","Stim2.1"),
-                   measure.vars = patterns("alpha.*"),
-                   variable.name = "Stimulus")
- tmp.1<-Alphas.long[Training==1]
+<!-- # ```{r} -->
+<!-- # Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1", -->
+<!-- #                                        "Client2","Stim1.0","Stim1.1", -->
+<!-- #                                        "Stim2.0","Stim2.1"), -->
+<!-- #                    measure.vars = patterns("alpha.*"), -->
+<!-- #                    variable.name = "Stimulus") -->
+<!-- #  tmp.1<-Alphas.long[Training==1] -->
+<!-- #  -->
+<!-- #  age2plot<-2000 -->
+<!-- #   -->
+<!-- #  ggarrange( -->
+<!-- #    tmp.1[AttMech=="Mackintosh2"&Age<age2plot] %>% -->
+<!-- #      ggplot(aes(x=Age,y = value,color=Stimulus))+ -->
+<!-- #      facet_wrap(~AttMech,nrow = 1)+ -->
+<!-- #      geom_path() -->
+<!-- #      # ylim(0.12,0.5) -->
+<!-- #    # , -->
+<!-- #    # tmp.1[Age<age2plot] %>% -->
+<!-- #    #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+ -->
+<!-- #    #   geom_point()+ -->
+<!-- #    #   # facet_wrap(~AttMech,nrow = 1)+ -->
+<!-- #    #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2), -->
+<!-- #    #              shape=2), -->
+<!-- #    # ncol = 1 -->
+<!-- #  ) -->
+<!-- #   -->
+<!-- # ``` -->
 
- age2plot<-100
- 
- ggarrange(
-   tmp.1[Age<age2plot] %>%
-     ggplot(aes(x=Age,y = value,color=Stimulus))+
-     facet_wrap(~AttMech,nrow = 1)+
-     geom_path()
-     # ylim(0.12,0.5)
-   # ,
-   # tmp.1[Age<age2plot] %>%
-   #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
-   #   geom_point()+
-   #   # facet_wrap(~AttMech,nrow = 1)+
-   #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
-   #              shape=2),
-   # ncol = 1
- )
+```{r}
+lastQuarter<-rawData[Age>max(Age)*0.4]
+lastQuarter<-lastQuarter[,Correct:=(Choice=="Object 1")]
+heteroChoice<-lastQuarter[(Client1=="Object 1")&(Client2=="Object 2")]
+heteroChoice2<-lastQuarter[(Client1=="Object 2")&(Client2=="Object 1")]
+heteroChoice2[,`:=`(Client1=Client2,Client2=Client1,Stim1.0=Stim2.0,
+                    Stim2.0=Stim1.0,Stim1.1=Stim2.1,Stim2.1=Stim1.1)]
+
+heteroChoice<-rbind(heteroChoice,heteroChoice2)
+
+
+
+distrChoices<-heteroChoice[,mean(Correct),
+                           by=.(Stim1.0,Stim1.1,Stim2.0,Stim2.1,Training,
+                                AttMech)]
+
+
+distrChoicesSum<-distrChoices[,.(max=fivenum(V1)[4],min=fivenum(V1)[2]),
+                           by=.(Stim1.0,Stim1.1,Stim2.0,Stim2.1,
+                                AttMech)]
+
+heteroChoice[,Choice:=factor(Choice,levels = c(0,1),labels = c(1,2))]
+
+ggplot(heteroChoice,aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
+       fill=as.factor(Correct)))+
+  geom_bar(position = "fill")+
+  geom_hline(yintercept = soft_max(x = params$residents$Sp1$reward[1],
+                                   params$visitors$Sp1$reward[1],
+                                   t = 0.5))+
+  geom_text(aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
+                label = ..count..),inherit.aes = FALSE,
+            stat = "count", position = "fill",vjust=12,size=2)+
+  geom_linerange(data = distrChoicesSum,aes(x=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1),
+                ymin=min,ymax=max,
+                group=interaction(Stim1.0,Stim1.1,Stim2.0,Stim2.1)),inherit.aes = FALSE)+
+  facet_wrap(~AttMech)+
+  scale_fill_manual(values = colorValues)+
+  labs(x="Stimuli combinations",y="Frequency",fill="Correct object")+
+  theme_classic()+
+  theme(legend.position = "top",axis.text.x = 
+          element_text(angle = 85, vjust =0.3,hjust =0.3))
+
+```
+
+
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the scenario with partial information in one stimuli. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:6],
+                  variable.name = "Features")
+ggplot(data = Values.long[ Age%%plotInterv==0],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=200))+
+  # geom_path()+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+
+# ggplot(data = Values.long[(AttMech=="Pearce-Hall")
+#                           & Age<20],
+#        aes(x=Age,y=value,color=Features))+
+#   geom_path()+
+#   geom_hline(yintercept = c(1,2),color="black")+
+#   facet_wrap(~Training)+
+#   theme_classic()
+
+```
+
+
+```{r,fig.cap='Dynamics of the learning speeds for each stimuli dimension discriminated by the attention mechanisms in the escenario with partial information for one stimuli.'}
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+ggplot(data = Alphas.long[Age%%plotInterv==0],
+       aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=100),size=0.3)+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+
+
+```{r, fig.cap='Examples of the dynamics of learning rates in a set of 4 replicates in the attention mechanisms for which learning rate changes in the scenario with partial  information for one stimuli.'}
+ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
+                            Training<4],
+       aes(x=Age,y=value,color=Stimulus))+
+  geom_step()+
+  facet_wrap(~AttMech+Training)+labs(title = "Mackintosh")+
+  theme_classic()
+
+```
+
+```{r}
+# rawData[,`:=`(predError=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Val.Client1","Val.Client2")]
+# 
+# 
+# rawData[,`:=`(predError0=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Val.Client10","Val.Client20")]
+# 
+# rawData[,`:=`(predError1=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Val.Client11","Val.Client21")]
+# 
+# 
+# 
+# pred.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+#                   measure.vars = c("predError0","predError1"),
+#                   variable.name = "Stimulus")
+# 
+# rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+#                                                        "Object 2","absence")),
+#               Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+#                                                        "Object 2","absence")),
+#               Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+#               Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
+#               half=factor(ifelse(Age<max(Age)/2,"before","after")))]
+# 
+# scaleAxis<-10
+# ggplot(Alphas.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                      (Age%%1==0&Age<100)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line()+
+#   geom_line(data=pred.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                            (Age%%1==0&Age<100)],
+#             aes(x=Age,y=value/scaleAxis,color=Stimulus),inherit.aes = FALSE)+
+#   # facet_wrap(~AttMech)+
+#   scale_y_continuous(
+#     
+#     # Features of the first axis
+#     name = expression(alpha),
+#     
+#     # Add a second axis and specify its features
+#     sec.axis = sec_axis(~.*scaleAxis, name="prediction error")
+#   )+
+#   theme_classic()
+# 
+# scaleAxis<-10
+# ggplot(Alphas.long[(AttMech == "Pearce-Hall2"&Training==0)&
+#                      (Age%%1==0&Age<100)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line()+
+#   geom_line(data=rawData[(AttMech == "Pearce-Hall"&Training==0)&
+#                            (Age%%1==0&Age<100)],
+#             aes(x=Age,y=predError/scaleAxis),inherit.aes = FALSE)+
+#   # facet_wrap(~AttMech)+
+#   scale_y_continuous(
+#     name = expression(alpha),
+#     sec.axis = sec_axis(~.*scaleAxis, name="prediction error")
+#   )+
+#   theme_classic()
+# 
+# scaleAxis<-0.04
+# ggplot(rawData[(AttMech == "Pearce-Hall2"&Training==0)&
+#                      (Age%%1==0&Age<500)],
+#        aes(x=Age))+
+#   geom_point(aes(y=predError),color="red")+
+#   geom_point(aes(y=predError0),color="blue")+
+#   geom_point(aes(y=predError1),color="green")+
+#   geom_line(data=Alphas.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                      (Age%%1==0&Age<500)],
+#        aes(y=value/scaleAxis,x=Age,color=Stimulus))+
+#    scale_y_continuous(
+#     name = "Value",
+#     sec.axis = sec_axis(~.*scaleAxis, name=expression(alpha))
+#   )+
+#   theme_classic()
+# 
+# 
+# scaleAxis<-20
+# ggplot(Alphas.long[(AttMech == "Mackintosh2"&Training==0)&
+#                      (Age<10000)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line(linetype=2)+
+#   geom_line(data=Values.long[(AttMech == "Mackintosh2"&Training==0)&
+#                      (Age<10000)],
+#             aes(x=Age,y=value/scaleAxis,color=Features),linetype=1)+
+#   scale_y_continuous(
+#     name = expression(alpha),
+#     sec.axis = sec_axis(~.*scaleAxis, name="Values")
+#   )+
+#   theme_classic()
+
+```
+
+
+```{r}
+
+
+# varRewards<-rawData[Client1!=Client2]
+# varRewards<-rawData[Client2==Choice]
+# 
+# ggplot(varRewards,aes(x=Current.Reward,fill=Stim2.0))+
+#   geom_histogram(position = "dodge")+
+#   theme_classic()
+
+```
+
+```{r}
+library(jsonlite)
+source(here("AccFunct.R"))
+scenario<-"FullPartial2Rand2_2_"
+
+
+param<-param.base
+
+param$maxAlpha<-0.3
+
+param$alphaT<-0.01
+
+param[["seqSp"]]<-FALSE
+
+param$totRounds<-2000
+
+param$numSti<-2
+param$numFeat<-2
+
+param$visitors$Sp1$alphas<-c(1,1)
+param$visitors$Sp1$betas<-c(0.01,1)
+param$visitors$Sp1$reward<-c(1,0.2)
+param$visitors$Sp1$relAbun=1
+param$residents$Sp1$alphas<-c(0.01,1)
+param$residents$Sp1$betas<-c(1,1)
+param$residents$Sp1$relAbun=1
+param$residents$Sp1$reward<-c(2,0.2)
+
+
+# check_create.dir(here("Simulations"),param = rep(scenario,1),
+#                  values = c(""))
+
+parFiles(paramJson = param,rangParam = rangParam,Param = Param)
+
+Sys.setenv(scen=scenario,nodes=length(rangParam))
+
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+
+```
+
+
+```{bash}
+cd ../Simulations/$scen
+
+find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe &
+```
+
+### Full info for one Partial information for the other one with random rewards:  
+<!-- scenario codeword: FullPartial2Info2_2_ -->
+Here one of the stimuli  contains information to distinguish the two object types. However, the information does not allow perfect discrimination. Specifically, object 1 has the feature 1, in the first stimulus dimension, with probability $`r round(dbb(0,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$ and the alternative feature with the complementary probability ($`r round(dbb(1,1,params$residents$Sp1$alphas[1],params$residents$Sp1$betas[1]),2)`$). In contrast, object 2 has feature 2  in the first stimulus dimension, with probability $`r round(dbb(1,1,params$visitors$Sp1$alphas[1],params$visitors$Sp1$betas[1]),2)`$. Thus, associating object 2 with feature two in the first dimension will lead to some errors where object 1 will be identifies as object 2. The features of the second stimulus have even probability for both objects. 
+
+
+
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for one stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE) %>%
+  grep(pattern = "alph0.01",value = TRUE)
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+
+stims<-list(
+  Val.Client10=c("Stim1.0"),
+            Val.Client11=c("Stim1.1"),
+            Val.Client20=c("Stim2.0"),
+            Val.Client21=c("Stim2.1"),
+            Val.Client1=c("Stim1.0","Stim1.1"),
+            Val.Client2=c("Stim2.0","Stim2.1")
+            )
+# 
+# rawData[, names(stims) := lapply(stims, SumCorrVals, data = .SD)]
+
+fun <- function(data, vals) {
+  stimvals <- Map(function(V, levels) {
+    match(paste0(sub("Stim[0-9]+\\.([0-9]+)", "Val.\\1", V), levels),
+          names(data))
+  }, setNames(nm = vals), lapply(vals, function(z) data[[z]]))
+  Reduce(`+`, lapply(stimvals, function(z) as.data.frame(data)[cbind(seq_along(z), z)]))
+}
+
+
+rawData[, names(stims) := lapply(stims, fun, data = .SD)]
+
+# rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+#           lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+# rawData[,(grep("Stim.*",names(rawData),value = TRUE)):=
+#           lapply(.SD,as.numeric),.SDcols=patterns("Stim.*")]
+
+# rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
+#                                Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+#                 fcase(Stim1.1==0,Val.10,
+#                       Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+#               Val.Client2=fcase(Stim2.0==0,Val.00,
+#                                Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+#                 fcase(Stim2.1==0,Val.10,
+#                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = rangParam,
+                      labels = labAtt)]
+
+# stims <- grep("Stim.*", names(rawData), value = TRUE)
+# stims <- split(stims, sub("\\..*", "", stims))
+# names(stims) <- sub(".*([0-9]+)$", "Val.Client\\1", names(stims))
+# stims
+
+
+
+
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1)
+)]
+ggarrange(
+  ggplot(data=rawData[Stim1.0!=0],aes(x=Client1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic(),
+  ggplot(data=rawData[Stim1.1!=0],aes(x=Client1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic(),common.legend=T
+    
+)
+```
+
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in one stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+interv<-51
+plotInterv<-50
+
+simsDir<-here("Simulations",scenario)
+
+PAAtimeInt<-do.call(
+  rbind,lapply(
+    getFilelist(simsDir,
+                listparam = "alph",
+                values = 0.01,fullNam = TRUE)$PIA,
+    file2timeInter,"AttMech",interV=interv))
+PAAtimeInt[,AttMech:=factor(AttMech,levels = rangParam,
+                            labels = labAtt)]
+
+value.obj.plot<-ggplot(rawData[Age%%plotInterv==0],
+       aes(y=Val.Client1,x=Age,color=Client1,
+                               shape=AttMech))+
+  geom_point()+ylab("Value")+
+  labs(shape="Attention \n mechanism", color="Objects")+
+  geom_hline(yintercept = c(0,params$visitors$Sp1$reward[1],
+                            params$residents$Sp1$reward[1]),color="grey")+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+  
+
+timeInterv.plot<-ggplot(PAAtimeInt,aes(x=Interv,y=Prob.RV.V,color=AttMech))+
+  stat_summary(fun.data = function(x) {
+      xFive<-fivenum(x)
+      return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))
+  })+
+  ylim(0,1)+labs(color="Attention \n mechanism",
+                 y="Frequency of incorrect choice",
+                 x=paste0("Interval of ",interv," trials"))+
+  geom_hline(yintercept = soft_max(params$visitors$Sp1$reward[1],
+                                   params$residents$Sp1$reward[1],0.5))+
+  theme_classic()+  
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5))
+
+ggarrange(value.obj.plot,timeInterv.plot,ncol = 1,labels = c('a','b'),label.x = 0.1)
+
+
+# rawData %>%
+#   ggplot(aes(y=Current.Reward))+
+#   geom_histogram()
+
+```
+
+```{r}
+# Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech","Client1",
+#                                        "Client2","Stim1.0","Stim1.1",
+#                                        "Stim2.0","Stim2.1"),
+#                    measure.vars = patterns("alpha.*"),
+#                    variable.name = "Stimulus")
+#  tmp.1<-Alphas.long[Training==1]
+# 
+#  age2plot<-2000
+#  
+#  ggarrange(
+#    tmp.1[AttMech=="Mackintosh2"&Age<age2plot] %>%
+#      ggplot(aes(x=Age,y = value,color=Stimulus))+
+#      facet_wrap(~AttMech,nrow = 1)+
+#      geom_path()
+#      # ylim(0.12,0.5)
+#    # ,
+#    # tmp.1[Age<age2plot] %>%
+#    #   ggplot(aes(x=Age,y = interaction(Stim1.0,Stim1.1) ,color=Client1))+
+#    #   geom_point()+
+#    #   # facet_wrap(~AttMech,nrow = 1)+
+#    #   geom_point(aes(x=Age,y=interaction(Stim2.0,Stim2.1),color=Client2),
+#    #              shape=2),
+#    # ncol = 1
+#  )
  
 ```
 
@@ -3155,6 +3728,106 @@ ggplot(data = Alphas.long[(AttMech!="Rescola-Wagner"&Age%%plotInterv==0)&
   theme_classic()
 
 ```
+
+```{r}
+# rawData[,`:=`(predError=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Client1","Val.Client1","Val.Client2")]
+# 
+# 
+# rawData[,`:=`(predError0=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Val.Client10","Val.Client20")]
+# 
+# rawData[,`:=`(predError1=apply(.SD,MARGIN = 1,function(x){
+#   if(x[2]==0) return(x[1]-x[3])
+#   else return(x[1]-x[4])
+# })),.SDcols=c("Current.Reward","Choice","Val.Client11","Val.Client21")]
+# 
+# 
+# 
+# pred.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+#                   measure.vars = c("predError0","predError1"),
+#                   variable.name = "Stimulus")
+# 
+# rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+#                                                        "Object 2","absence")),
+#               Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+#                                                        "Object 2","absence")),
+#               Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+#               Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
+#               half=factor(ifelse(Age<max(Age)/2,"before","after")))]
+# 
+# scaleAxis<-10
+# ggplot(Alphas.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                      (Age%%1==0&Age<100)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line()+
+#   geom_line(data=pred.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                            (Age%%1==0&Age<100)],
+#             aes(x=Age,y=value/scaleAxis,color=Stimulus),inherit.aes = FALSE)+
+#   # facet_wrap(~AttMech)+
+#   scale_y_continuous(
+#     
+#     # Features of the first axis
+#     name = expression(alpha),
+#     
+#     # Add a second axis and specify its features
+#     sec.axis = sec_axis(~.*scaleAxis, name="prediction error")
+#   )+
+#   theme_classic()
+# 
+# scaleAxis<-10
+# ggplot(Alphas.long[(AttMech == "Pearce-Hall2"&Training==0)&
+#                      (Age%%1==0&Age<100)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line()+
+#   geom_line(data=rawData[(AttMech == "Pearce-Hall"&Training==0)&
+#                            (Age%%1==0&Age<100)],
+#             aes(x=Age,y=predError/scaleAxis),inherit.aes = FALSE)+
+#   # facet_wrap(~AttMech)+
+#   scale_y_continuous(
+#     name = expression(alpha),
+#     sec.axis = sec_axis(~.*scaleAxis, name="prediction error")
+#   )+
+#   theme_classic()
+# 
+# scaleAxis<-0.04
+# ggplot(rawData[(AttMech == "Pearce-Hall2"&Training==0)&
+#                      (Age%%1==0&Age<500)],
+#        aes(x=Age))+
+#   geom_point(aes(y=predError),color="red")+
+#   geom_point(aes(y=predError0),color="blue")+
+#   geom_point(aes(y=predError1),color="green")+
+#   geom_line(data=Alphas.long[(AttMech == "Pearce-Hall"&Training==0)&
+#                      (Age%%1==0&Age<500)],
+#        aes(y=value/scaleAxis,x=Age,color=Stimulus))+
+#    scale_y_continuous(
+#     name = "Value",
+#     sec.axis = sec_axis(~.*scaleAxis, name=expression(alpha))
+#   )+
+#   theme_classic()
+# 
+# 
+# scaleAxis<-20
+# ggplot(Alphas.long[(AttMech == "Mackintosh2"&Training==0)&
+#                      (Age<10000)],
+#        aes(y=value,x=Age,color=Stimulus))+
+#   geom_line(linetype=2)+
+#   geom_line(data=Values.long[(AttMech == "Mackintosh2"&Training==0)&
+#                      (Age<10000)],
+#             aes(x=Age,y=value/scaleAxis,color=Features),linetype=1)+
+#   scale_y_continuous(
+#     name = expression(alpha),
+#     sec.axis = sec_axis(~.*scaleAxis, name="Values")
+#   )+
+#   theme_classic()
+
+```
+
+
 
 
 <!-- so  if  Just like like in previous versions of the model, we assume that clients that  -->
