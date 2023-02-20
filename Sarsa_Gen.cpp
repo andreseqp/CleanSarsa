@@ -127,14 +127,14 @@ public:
 protected:
 	double values[10][5];																							
 	// array storing the estimated values of different features
-	double alphas[10];
+	double alphas[10][5];
 	// array storing the speed of learning for different stimuli dimentions
-	double beta_k[10];
+	double beta_k[10][5];
 	// array storing an estimate of uncertainty in predictions
-	double h_k[10];
+	double h_k[10][5];
 	// array storing an estimate of uncertainty in predictions introduced in 
 	// Sutton 1992
-	double s2_k[10];
+	double s2_k[10][5];
 	// array storing an estimate of uncertainty in predictions
 	double s2R;
 	// Parameter setting the level of stochasticity
@@ -162,11 +162,14 @@ protected:
 agent::agent()			// basic constructor
 {
 	numSti = 10;
+	numFeat = 5;
 	s2R = 0.25;
 	for (int i = 0; i < numSti; ++i) {
-		for (auto j : values[i])	j = 0;
-		alphas[i] = 0.01, beta_k[i] = log(s2R),
-			h_k[i]=0, s2_k[i]=0;
+		for (int j = 0; j < numFeat+1; ++j) {
+			values[i][j] = 0;
+			alphas[i][j] = 0.01, beta_k[i][j] = log(s2R),
+				h_k[i][j] = 0, s2_k[i][j] = 0;
+		}
 	}
 	alpha = 0.01, gamma = 0.5, tau = 10;								
 	// Default values
@@ -182,10 +185,12 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI,
 	int _numSti,int _numFeat,double s2RI=0.25,double initVal = 0){
   // parameterized constructor
 	numSti = _numSti, numFeat = _numFeat,s2R = s2RI;
-	for (int i=0; i < numSti;++i) {
-		for (int j = 0; j < numFeat+1; ++j)	values[i][j] = initVal;
-		alphas[i] = alphaI, beta_k[i] = log(s2R),
-			h_k[i] = 0, s2_k[i] = 0;
+	for (int i = 0; i < numSti; ++i) {
+		for (int j = 0; j < numFeat+1; ++j) {
+			values[i][j] = 0;
+			alphas[i][j] = 0.01, beta_k[i][j] = log(s2R),
+				h_k[i][j] = 0, s2_k[i][j] = 0;
+		}
 	}
 	alpha = alphaI, gamma = gammaI, tau = tauI;
 	neta = netaI;
@@ -205,8 +210,8 @@ void agent::rebirth(double initVal = 0){
 	currentReward = 0;
 	cumulReward = 0;
 	for (int i=0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat + 1; ++j)	 values[i][j] = initVal;
-		alphas[i] = alpha;
+		for (int j = 0; j < numFeat + 1; ++j)	 
+			values[i][j] = initVal,	alphas[i][j] = alpha;
 	}
 }
 
@@ -419,13 +424,15 @@ void agent::update(int attenMech, double maxAlpha){
 	if (attenMech != 2) {
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alphas[countStim] * delta;
+				alphas[countStim][cleanOptionsT[choiceT].features[countStim]]
+				* delta;
 		}
 	}
 	else{
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alphas[countStim]*lambda;
+				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] 
+				*lambda;
 		}
 	}
 	updateAlpha(lambda,maxAlpha,attenMech);
@@ -448,9 +455,12 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 				//alphas[0] = alpha*(abs(lambda - values[1]) -
 				abs(lambda - 
 					values[countStim][cleanOptionsT[choiceT].features[countStim]]);
-			if (deltaTemp != 0) alphas[countStim] += alpha*deltaTemp;
-			clip_range(alphas[countStim], 0, max);
-			if (isnan(alphas[countStim])) {
+			if (deltaTemp != 0) 
+				alphas[countStim]
+				[cleanOptionsT[choiceT].features[countStim]] += alpha*deltaTemp;
+			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]]
+				, 0, max);
+			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
 		}
@@ -460,14 +470,15 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 		break;
 	case 2:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			alphas[countStim] = alpha*abs(lambda -
+			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = 
+				alpha*abs(lambda -
 				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
-				(1 - alpha)*alphas[countStim];
-			clip_range(alphas[countStim], 0, max);
-			if (alphas[countStim] > 1) {
+				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
+			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
+			if (alphas[countStim][cleanOptionsT[choiceT].features[countStim]] > 1) {
 				wait_for_return();
 			}
-			if (isnan(alphas[countStim])) {
+			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
 		}
@@ -478,9 +489,11 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			deltaTemp = 
 				alpha*values[countStim][cleanOptionsT[choiceT].features[countStim]];
-			if (deltaTemp != 0) alphas[countStim] += alpha*deltaTemp;
-			clip_range(alphas[countStim], 0, max);
-			if (isnan(alphas[countStim])) {
+			if (deltaTemp != 0) 
+				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] +=
+				alpha*deltaTemp;
+			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
+			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
 		}
@@ -488,10 +501,11 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
     // Based on @mackintosh_Theory_1975
 	case 4:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			if (deltaTemp != 0) alphas[countStim] = alpha*delta +
-				(1 - alpha)*alphas[countStim];
-			clip_range(alphas[countStim], 0, max);
-			if (isnan(alphas[countStim])) {
+			if (deltaTemp != 0) 
+				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = alpha*delta +
+				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
+			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
+			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
 		}
@@ -507,11 +521,12 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 			clip_range(deltaTemp, 0.05, 1);
 			beta = abs(lambda -
 				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
-				(1 - alpha)*alphas[countStim];
+				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
 			clip_range(beta, 0.5, 1);
-			if (deltaTemp != 0) alphas[countStim] = deltaTemp*beta;
-			clip_range(alphas[countStim], 0, max);
-			if (isnan(alphas[countStim])) {
+			if (deltaTemp != 0) alphas[countStim][cleanOptionsT[choiceT].features[countStim]] 
+				= deltaTemp*beta;
+			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
+			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
 		}
@@ -524,18 +539,32 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 	case 6:
 		sums2x2 = 0;
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			beta_k[countStim] += alpha*delta*h_k[countStim] * 
-				cleanOptionsT[choiceT].features[countStim];  // equation (13) in Sutton 1992b
-			s2_k[countStim] = exp(beta_k[countStim]);     // equation (11) in Sutton 1992b
-			sums2x2 += s2_k[countStim] * cleanOptionsT[choiceT].features[countStim]* 
-				cleanOptionsT[choiceT].features[countStim];
+			beta_k[countStim][cleanOptionsT[choiceT].features[countStim]] +=
+				alpha*delta*
+				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] * 1;
+// Fix this
+//cleanOptionsT[choiceT].features[countStim];  // equation (13) in Sutton 1992b
+			s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] = 
+				exp(beta_k[countStim][cleanOptionsT[choiceT].features[countStim]]);     // equation (11) in Sutton 1992b
+			sums2x2 += s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
+				1;
+// Fix this
+//* cleanOptionsT[choiceT].features[countStim]*
+//cleanOptionsT[choiceT].features[countStim];
 		}
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			alphas[countStim] = s2_k[countStim] * 
-				cleanOptionsT[choiceT].features[countStim] / (sums2x2 + s2R);// equation (10) in Sutton 1992b
-			h_k[countStim] = (h_k[countStim] + alphas[countStim] * delta)
-				*ReLU(1 - alphas[countStim] * 
-					cleanOptionsT[choiceT].features[countStim]); // equation (15)
+			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = 
+				s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *1
+// Fix this
+//cleanOptionsT[choiceT].features[countStim] 
+				/ (sums2x2 + s2R);// equation (10) in Sutton 1992b
+			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
+				(h_k[countStim][cleanOptionsT[choiceT].features[countStim]] +
+					alphas[countStim][cleanOptionsT[choiceT].features[countStim]] *
+					delta)*
+				ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1);
+// Fix this
+//cleanOptionsT[choiceT].features[countStim]); // equation (15)
 		}
 		
 		//error("argument out of range", CURRENT_FUNCTION);
@@ -549,21 +578,29 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 		// // according to Sutton 1992b)
 		sums2x2 = 0;
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			beta_k[countStim] += alpha*delta*h_k[countStim] *
-				cleanOptionsT[choiceT].features[countStim];  
+			beta_k[countStim][cleanOptionsT[choiceT].features[countStim]] +=
+				alpha*delta*
+				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] * 1;
+// Fix this
+//cleanOptionsT[choiceT].features[countStim];  
 			// equation (13) in Sutton 1992b
-			alphas[countStim] = std::exp(beta_k[countStim])*
-				cleanOptionsT[choiceT].features[countStim];  
+			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] =
+				exp(beta_k[countStim][cleanOptionsT[choiceT].features[countStim]]) * 1;
+// Fix this
+//cleanOptionsT[choiceT].features[countStim];  
 			// eq. (17) in Sutton 1992b, cf (4) in Sutton 1992a
-			if (alphas[countStim] == INFINITY)
+			if (alphas[countStim][cleanOptionsT[choiceT].features[countStim]] == INFINITY)
 				cout << "Infinity value" << endl;
 		}
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			// from eq. (20) in Sutton 1992b, cf (5) or fig 2 in Sutton 1992a
-			h_k[countStim] = h_k[countStim] *
-				ReLU(1 - alphas[countStim] *
-					cleanOptionsT[choiceT].features[countStim]) +
-				alphas[countStim] * delta;
+			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
+				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
+				ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1)+
+// Fix this
+//cleanOptionsT[choiceT].features[countStim]) +
+				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 
+				delta;
 		}
 		// Based on @dayan_Learning_2000 and @sutton_Gain_1992
 		break;
@@ -786,58 +823,58 @@ int main(int argc, char* argv[])
 	// input parameters provided by a JSON file with the following
 	// structure:
 
-	json param;
-	param["totRounds"] = 1000;
-	param["ResReward"] = 1;
-	param["VisReward"] = param["resreward"];
-	param["ResProb"] =  0.3;
-	param["VisProb"] =  0.3;
-	param["ResProbLeav"] = 1;
-	param["VisProbLeav"] = 1;
-	param["negativeRew"] = -0.5;
-	param["experiment"] = false;
-	param["inbr"] = 0.0;
-	param["outbr"] = 0;
-	param["trainingRep"] = 10;//30
-	param["alphaT"] = 0.005;
-	param["numlearn"] = 1;
-	param["printGen"] = 1;
-	param["netaRange"] = { 0 };
-	param["gammaRange"] = { 0 };
-	param["tauRange"] = { 0.5 };
-	param["seed"] = 1;
-	param["forRat"] = 0.0;
-	param["numSti"] = 2;
-	param["numFeat"] = 2;
-	param["propfullPrint"] = 0.8;
-	param["attenMech"] = 7;
-	param["maxAlpha"] = 0.5;
-	param["seqSp"] = true;
-	param["folder"]       = "m:/Projects/CleanSarsa/Simulations/test_/";
+	//json param;
+	//param["totRounds"] = 1000;
+	//param["ResReward"] = 1;
+	//param["VisReward"] = param["resreward"];
+	//param["ResProb"] =  0.3;
+	//param["VisProb"] =  0.3;
+	//param["ResProbLeav"] = 1;
+	//param["VisProbLeav"] = 1;
+	//param["negativeRew"] = -0.5;
+	//param["experiment"] = false;
+	//param["inbr"] = 0.0;
+	//param["outbr"] = 0;
+	//param["trainingRep"] = 10;//30
+	//param["alphaT"] = 0.005;
+	//param["numlearn"] = 1;
+	//param["printGen"] = 1;
+	//param["netaRange"] = { 0 };
+	//param["gammaRange"] = { 0 };
+	//param["tauRange"] = { 0.5 };
+	//param["seed"] = 1;
+	//param["forRat"] = 0.0;
+	//param["numSti"] = 2;
+	//param["numFeat"] = 2;
+	//param["propfullPrint"] = 0.8;
+	//param["attenMech"] = 2;
+	//param["maxAlpha"] = 0.5;
+	//param["seqSp"] = true;
+	//param["folder"]       = "m:/Projects/CleanSarsa/Simulations/test_/";
 
-	param["visitors"]["Sp1"]["alphas"] = { 1 };
-	param["visitors"]["Sp1"]["betas"] = { 0.01 };
-	param["visitors"]["Sp1"]["relAbun"] = 1;
-	param["visitors"]["Sp1"]["reward"] = { 1, 0 };
-	param["visitors"]["Sp2"]["alphas"] = { 1, 0.01 };
-	param["visitors"]["Sp2"]["betas"] = { 0.01, 1 };
-	param["visitors"]["Sp2"]["relAbun"] = 1;
-	param["visitors"]["Sp2"]["reward"] = { 1, 0 };
-	param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
-	param["residents"]["Sp1"]["betas"] = { 1,1};
-	param["residents"]["Sp1"]["relAbun"] = 1;
-	param["residents"]["Sp1"]["reward"] = { 2, 0 };
-	param["residents"]["Sp2"]["alphas"] = { 0.5 , 1 };
-	param["residents"]["Sp2"]["betas"] = { 1,1 };
-	param["residents"]["Sp2"]["relAbun"] = 1;
-	param["residents"]["Sp2"]["reward"] = { 2, 0 };
+	//param["visitors"]["Sp1"]["alphas"] = { 1 };
+	//param["visitors"]["Sp1"]["betas"] = { 0.01 };
+	//param["visitors"]["Sp1"]["relAbun"] = 1;
+	//param["visitors"]["Sp1"]["reward"] = { 1, 0 };
+	//param["visitors"]["Sp2"]["alphas"] = { 1, 0.01 };
+	//param["visitors"]["Sp2"]["betas"] = { 0.01, 1 };
+	//param["visitors"]["Sp2"]["relAbun"] = 1;
+	//param["visitors"]["Sp2"]["reward"] = { 1, 0 };
+	//param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["Sp1"]["betas"] = { 1,1};
+	//param["residents"]["Sp1"]["relAbun"] = 1;
+	//param["residents"]["Sp1"]["reward"] = { 2, 0 };
+	//param["residents"]["Sp2"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["Sp2"]["betas"] = { 1,1 };
+	//param["residents"]["Sp2"]["relAbun"] = 1;
+	//param["residents"]["Sp2"]["reward"] = { 2, 0 };
 	
 	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_1.json");
 
 	// Read parameters
-	/*ifstream input(argv[1]);
+	ifstream input(argv[1]);
 	if (input.fail()) { cout << "JSON file failed" << endl; }
-	json param = nlohmann::json::parse(input);*/
+	json param = nlohmann::json::parse(input);
 	//
 	//// Pass on parameters from JSON to c++
 	//int const totRounds = param["totRounds"];

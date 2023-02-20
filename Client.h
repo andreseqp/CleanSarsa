@@ -117,13 +117,13 @@ void client::rebirth(client_ty type=absence,
 	int _numFeat = 0) {
 	numStim = alphas.size();
 	mytype = type;
-		species = _species;
-		if(mytype == absence) {
-			for (size_t i = 0; i < numStim; i++) {
-				features[i] = 0;
-				reward = 0;
-			}
+	species = _species;
+	if(mytype == absence) {
+		for (size_t i = 0; i < numStim; i++) {
+			features[i] = 0;
+			reward = 0;
 		}
+	}
 	else {
 		for (size_t i = 0; i < 10; i++) {
 			if (i < numStim) {

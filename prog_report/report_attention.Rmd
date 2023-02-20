@@ -172,42 +172,42 @@ plotInterv<-500
 scenario<-"fullInfo2_2_"
 
 
-# param.base<-list(totRounds=10000,ResReward=1,VisReward=1,
-#             ResProb=c(0.3),
-#             VisProb=c(0.3),
-#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
-#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
-#             propfullPrint = 0.7,
-#             alphaT=0.1,printGen=1,seed=1, gammaRange=I(c(0)),
-#             tauRange=c(0.5),netaRange=c(0),
-#             attenMech = 1,maxAlpha=0.5,
-#             seqSp = FALSE,
-#             numSti = 2, # Number of different stimuli
-#             numFeat = 2, # Number of different features for each stimuli
-#             folderL=paste(here("Simulations","test_"),"/",sep=""))
-# 
-# param<-param.base
-# 
-# param$visitors$Sp1$alphas<-c(1,0.01)
-# param$visitors$Sp1$betas<-c(0.01,1)
-# param$visitors$Sp1$reward<-c(1,0)
-# param$visitors$Sp1$relAbun=1
-# param$residents$Sp1$alphas<-c(0.01,1)
-# param$residents$Sp1$betas<-c(1,0.01)
-# param$residents$Sp1$relAbun=1
-# param$residents$Sp1$reward<-c(2,0)
-# 
+param.base<-list(totRounds=10000,ResReward=1,VisReward=1,
+            ResProb=c(0.3),
+            VisProb=c(0.3),
+            ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+            inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+            propfullPrint = 0.7,
+            alphaT=0.1,printGen=1,seed=1, gammaRange=I(c(0)),
+            tauRange=c(0.5),netaRange=c(0),
+            attenMech = 1,maxAlpha=0.5,
+            seqSp = FALSE,
+            numSti = 2, # Number of different stimuli
+            numFeat = 2, # Number of different features for each stimuli
+            folderL=paste(here("Simulations","test_"),"/",sep=""))
+
+param<-param.base
+
+param$visitors$Sp1$alphas<-c(1,0.01)
+param$visitors$Sp1$betas<-c(0.01,1)
+param$visitors$Sp1$reward<-c(1,0)
+param$visitors$Sp1$relAbun=1
+param$residents$Sp1$alphas<-c(0.01,1)
+param$residents$Sp1$betas<-c(1,0.01)
+param$residents$Sp1$relAbun=1
+param$residents$Sp1$reward<-c(2,0)
+
 Param<-"attenMech"
-rangParam<-c(0,1,2,3,4,5,6,7)[8]
+rangParam<-c(0,1,2,3,4,5,6,7)
 labAtt<-c("Rescola-Wagner","Mackintosh","Pearce-Hall","Mackintosh2",
-          "Pearce-Hall2","Hybrid","K1","IBDB")[8]
+          "Pearce-Hall2","Hybrid","K1","IBDB")
 # 
 # check_create.dir(here("Simulations"),param = rep(scenario,1),
 #                  values = c(""))
 # 
-# parFiles(paramJson = param,rangParam = rangParam,Param = Param)
-# 
-# Sys.setenv(scen=scenario,nodes=length(rangParam))
+parFiles(paramJson = param,rangParam = rangParam,Param = Param)
+
+Sys.setenv(scen=scenario,nodes=length(rangParam))
 
 params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
@@ -215,11 +215,13 @@ params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
 
 
-<!-- ```{bash} -->
-<!-- cd ../Simulations/$scen -->
+```{bash}
+cd ../Simulations/$scen
 
-<!-- find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe & -->
-<!-- ``` -->
+find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe &
+```
+
+
 
 ```{r fig1, fig.cap='Frequency of features of the two different stimuli in the two different objects for the perfect information scenario.'}
 
@@ -404,6 +406,8 @@ ggplot(data = Alphas.long[ Age %% plotInterv ==0],aes(x=Age,y=value,color=Stimul
   # geom_step()+
   facet_wrap(~AttMech)+
   theme_classic()
+
+head(rawData)
 
 ```
 
