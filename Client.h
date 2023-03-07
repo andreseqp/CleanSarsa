@@ -87,26 +87,19 @@ client::client(client_ty type, std::vector<double> alphas,
 	else {
 		for (size_t i = 0; i < 10; i++) {
 			if (i < numStim) {
-				features[i] = 1 + rnd::beta_binomial(_numFeat - 1, 
-					alphas[i], betas[i]);
+				if (alphas[i] == 0) features[i] = betas[i];
+				else features[i] = 1 + 
+					rnd::beta_binomial(_numFeat - 1, alphas[i], betas[i]);
 			}
 			else {
 				features[i] = 0;
 			}
 		}
-		/*heigth = rnd::normal(msdHeight[0], msdHeight[1]), length = rnd::normal(msdLength[0], msdLength[1]), mainRed = rnd::normal(mMainRGB[0],sdMainRGB[0]);
-		mainGreen = rnd::normal(mMainRGB[1],sdMainRGB[1]), mainBlue = rnd::normal(mMainRGB[2],sdMainRGB[2]), stripes = rnd::bernoulli(pStripes), dots = rnd::bernoulli(pDots);
-		secondCol = rnd::bernoulli(pSecCol), reward = 0;*/
-		//if (!featBool[0]) { 
-		//	for (size_t i = 5; i < 8; i++) { featQuant[i] = 0; }
-		//	//secRed = rnd::normal(mSecRGB[0],sdSecRGB[0]), secGreen = rnd::normal(mSecRGB[1],sdSecRGB[1]), secBlue = rnd::normal(mSecRGB[2], sdSecRGB[2]);	
-		//	//clip_range(secRed, 0, 255), clip_range(secGreen, 0, 255), clip_range(secBlue, 0, 255);
-		//}
-		if (rew[1] > 0) {
-			reward = rew[0] + rnd::normal(0, rew[1]);
-			clip_low(reward, 0);
-		}
-		else reward = rew[0];
+		if (rew[numStim] == 0) reward = 0;
+		else reward = rnd::normal(0, rew[numStim]);
+		for (int i = 0; i<numStim;++i)
+			 reward += rew[i];
+		clip_low(reward, 0);
 	}
 }
 
@@ -127,23 +120,19 @@ void client::rebirth(client_ty type=absence,
 	else {
 		for (size_t i = 0; i < 10; i++) {
 			if (i < numStim) {
-				features[i] = 1 + rnd::beta_binomial(_numFeat - 1,
-					alphas[i], betas[i]);
+				if (alphas[i] == 0) features[i] = betas[i];
+				else features[i] = 1 +
+					rnd::beta_binomial(_numFeat - 1, alphas[i], betas[i]);
 			}
 			else {
 				features[i] = 0;
 			}
 		}
-		//if (!featBool[0]) {
-		//	for (size_t i = 5; i < 8; i++) { featQuant[i] = 0; }
-		//	//secRed = rnd::normal(mSecRGB[0],sdSecRGB[0]), secGreen = rnd::normal(mSecRGB[1],sdSecRGB[1]), secBlue = rnd::normal(mSecRGB[2], sdSecRGB[2]);	
-		//	//clip_range(secRed, 0, 255), clip_range(secGreen, 0, 255), clip_range(secBlue, 0, 255);
-		//}
-		if (rew[1] > 0) {
-			reward = rew[0] + rnd::normal(0, rew[1]);
-			clip_low(reward, 0);
-		}
-		else reward = rew[0];
+		if (rew[numStim] == 0) reward = 0;
+		else reward = rnd::normal(0, rew[numStim]);
+		for (int i = 0; i<numStim; ++i)
+			reward += rew[i];
+		clip_low(reward, 0);
 	}
 }
 

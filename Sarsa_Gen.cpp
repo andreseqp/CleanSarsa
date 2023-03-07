@@ -75,9 +75,7 @@ public:
 	void update(int attenMech=0,double maxAlpha=1);
 	// function that updates the value of state-action pairs according to 
 	//current reward and estimates of future values
-	void act(client newOptions[], int &idNewOptions, nlohmann::json param,
-		rnd::discrete_distribution visitSpProb,
-		rnd::discrete_distribution residSpProb);
+	void act(client newOptions[], int &idNewOptions, nlohmann::json param);
 		// function where the agent takes the action, gets reward, see new 
 		//state and chooses future action
 	void printIndData(ofstream &learnSeries, int seed, json &param);
@@ -89,20 +87,12 @@ public:
 	//otherwise trigger an error
 	void rebirth(double initVal);																								
 	// Function to reset private variables in an individual
-	void getNewOptions(client newOptions[], int &idNewOptions,
-		nlohmann::json param, rnd::discrete_distribution visitSpProb,
-		rnd::discrete_distribution residSpProb);
+	void getNewOptions(client newOptions[], int &idNewOptions,nlohmann::json param);
 	// Function to get new clients in the station, when in a natural environment
 	void getExternalOptions(client newOptions[], int &idNewOptions,
-		nlohmann::json param,
-		rnd::discrete_distribution visitSpProb,
-		rnd::discrete_distribution residSpProb);
+		nlohmann::json param);
 	// After unattended clinets leave or stay, get new clients
 	// After unattended clients leave or stay, get new clients
-	void getExperimentalOptions(nlohmann::json param,
-		rnd::discrete_distribution visitSpProb,
-		rnd::discrete_distribution residSpProb);
-	// Get new clients in the experimental setting
 	void ObtainReward();
 	// Get reward
 	double softMax(double &value1, double &value2);
@@ -236,8 +226,7 @@ void agent::ObtainReward() {
 }
 
 void agent::getNewOptions(client newOptions[], int &idNewOptions,
-	nlohmann::json param, rnd::discrete_distribution visitSpProb,
-	rnd::discrete_distribution residSpProb) {
+	nlohmann::json param) {
 	if (choiceT == 0) {
 		// Define the behaviour of the unattended client
 		if (cleanOptionsT[1].mytype == resident) {
@@ -277,19 +266,11 @@ void agent::getNewOptions(client newOptions[], int &idNewOptions,
 		}
 		else { negReward = 0; }
 	}
-	if (param["experiment"].get<bool>()) {
-		getExperimentalOptions(param,
-			visitSpProb, residSpProb);
-	}
-	else {
-		getExternalOptions(newOptions, idNewOptions, param,
-			visitSpProb, residSpProb);
-	}
+	getExternalOptions(newOptions, idNewOptions, param);
 }
 
 void agent::getExternalOptions(client newOptions[], int &idNewOptions,
-	nlohmann::json param, rnd::discrete_distribution visitSpProb,
-	rnd::discrete_distribution residSpProb) {
+	nlohmann::json param) {
 	if (cleanOptionsT1[0].mytype + cleanOptionsT1[1].mytype > 3) {
 		// If none of the clients stayed from the previous interaction
 		bool randPos = rnd::bernoulli();
@@ -306,96 +287,13 @@ void agent::getExternalOptions(client newOptions[], int &idNewOptions,
 		// There is a client in the stations
 		// Fill the alternative option depending on the available one
 		bool filledPos = cleanOptionsT1[1].mytype != absence;
-		double probs[3] = { (1 - static_cast<double>(param["inbr"]))*
-			(1 - static_cast<double>(param["outbr"])) +
-			static_cast<double>(param["inbr"])*
-			static_cast<double>(param["outbr"]) , 0, 0 };
-		// Define probabilities depending on parameters
-		probs[1] = probs[0] + static_cast<double>(param["inbr"])*
-			(1 - static_cast<double>(param["outbr"]));
-		// First prob is of a random option	
-		probs[2] = probs[1] + static_cast<double>(param["outbr"])*
-			(1 - static_cast<double>(param["inbr"]));
-		// Second and third homophily, and heterophily respectively
-		if (probs[2] != 1) {
-			error("agent:getExternalOptions",
-				"probability does not sum up to 1");
-		}
-		double rand = rnd::uniform();
-		if (probs[0] > rand) {
-			cleanOptionsT1[!filledPos] = newOptions[idNewOptions];
-			++idNewOptions;
-		}
-		else if (probs[1] > rand) {
-			if (cleanOptionsT1[1].mytype == resident) {
-				// homophily
-				std::string chosenSp = "Sp";
-				chosenSp.append(itos(residSpProb.sample() + 1));
-				cleanOptionsT1[!filledPos].rebirth(resident,
-					param["residents"][chosenSp]["alphas"],
-					param["residents"][chosenSp]["betas"],
-					param["residents"][chosenSp]["reward"], chosenSp);
-			}
-			else {
-				std::string chosenSp = "Sp";
-				chosenSp.append(itos(residSpProb.sample() + 1));
-				cleanOptionsT1[!filledPos].rebirth(visitor,
-					param["residents"][chosenSp]["alphas"],
-					param["residents"][chosenSp]["betas"],
-					param["residents"][chosenSp]["reward"], chosenSp);
-			}
-		}
-		else {
-			// heterophily
-			if (cleanOptionsT1[0].mytype == resident) {
-				std::string chosenSp = "Sp";
-				chosenSp.append(itos(visitSpProb.sample() + 1));
-				cleanOptionsT1[!filledPos].rebirth(visitor,
-					param["residents"][chosenSp]["alphas"],
-					param["residents"][chosenSp]["betas"],
-					param["residents"][chosenSp]["reward"], chosenSp);
-			}
-			else {
-				std::string chosenSp = "Sp";
-				chosenSp.append(itos(residSpProb.sample() + 1));
-				cleanOptionsT1[!filledPos].rebirth(resident,
-					param["residents"][chosenSp]["alphas"],
-					param["residents"][chosenSp]["betas"],
-					param["residents"][chosenSp]["reward"], chosenSp);
-			}
-		}
+		cleanOptionsT1[!filledPos] = newOptions[idNewOptions];
+		++idNewOptions;
 	}
 }
 
-void agent::getExperimentalOptions(nlohmann::json param,
-	rnd::discrete_distribution visitSpProb,
-	rnd::discrete_distribution residSpProb) {
-	// Get new options in an experimental setting
-	if (cleanOptionsT[0].mytype == resident &&
-		cleanOptionsT[1].mytype == visitor) {
-		return;
-	}
-	// Every other option is a Resident-Visitor
-	else {
-		std::string chosenSp = "Sp";
-		chosenSp.append(itos(residSpProb.sample() + 1));
-		cleanOptionsT1[0].rebirth(resident,
-			param["residents"][chosenSp]["alphas"],
-			param["residents"][chosenSp]["betas"],
-			param["residents"][chosenSp]["reward"], chosenSp);
-		chosenSp = "Sp";
-		chosenSp.append(itos(visitSpProb.sample() + 1));
-		cleanOptionsT1[1].rebirth(visitor,
-			param["residents"][chosenSp]["alphas"],
-			param["residents"][chosenSp]["betas"],
-			param["residents"][chosenSp]["reward"], chosenSp);
-		return;
-	}
-}
-void agent::act(client newOptions[], int &idNewOptions,
-	nlohmann::json param,
-	rnd::discrete_distribution visitSpProb,
-	rnd::discrete_distribution residSpProb) {
+
+void agent::act(client newOptions[], int &idNewOptions,	nlohmann::json param) {
 	// taking action, obtaining reward, seeing new state, choosing future action
 	++age;
 	// new time step
@@ -411,7 +309,7 @@ void agent::act(client newOptions[], int &idNewOptions,
 	// Future state is unknown: only the first parameters matters for this function. 
 	choiceT1 = 2;
 	ObtainReward();
-	getNewOptions(newOptions, idNewOptions, param, visitSpProb, residSpProb);
+	getNewOptions(newOptions, idNewOptions, param);
 	value();
  	choice();
 }
@@ -421,7 +319,7 @@ void agent::update(int attenMech, double maxAlpha){
 	double lambda;
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
 	delta = lambda - valuesT[choiceT];
-	if (attenMech != 2) {
+	if (attenMech != 4) {
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
 				alphas[countStim][cleanOptionsT[choiceT].features[countStim]]
@@ -463,17 +361,17 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
 				wait_for_return();
 			}
-		}
-		 
+		}		 
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
 		break;
 	case 2:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = 
-				alpha*abs(lambda -
-				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
-				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
+			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] =
+				//alpha*abs(lambda -
+				abs(lambda -
+					values[countStim][cleanOptionsT[choiceT].features[countStim]]);
+				//+(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
 			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
 			if (alphas[countStim][cleanOptionsT[choiceT].features[countStim]] > 1) {
 				wait_for_return();
@@ -514,12 +412,14 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 	  break;
 	case 5:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			deltaTemp = abs(lambda - valuesT[choiceT] +
-				values[countStim][cleanOptionsT[choiceT].features[countStim]]) -
+			deltaTemp = 
+			abs(lambda - valuesT[choiceT] +
+				valuesT[choiceT]) -
 				//alphas[0] = alpha*(abs(lambda - values[1]) -
 				abs(lambda - values[countStim][cleanOptionsT[choiceT].features[countStim]]);
 			clip_range(deltaTemp, 0.05, 1);
-			beta = abs(lambda -
+			beta = 
+				abs(lambda -
 				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
 				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
 			clip_range(beta, 0.5, 1);
@@ -542,20 +442,17 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 			beta_k[countStim][cleanOptionsT[choiceT].features[countStim]] +=
 				alpha*delta*
 				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] * 1;
-// Fix this
 //cleanOptionsT[choiceT].features[countStim];  // equation (13) in Sutton 1992b
 			s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] = 
 				exp(beta_k[countStim][cleanOptionsT[choiceT].features[countStim]]);     // equation (11) in Sutton 1992b
 			sums2x2 += s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
 				1;
-// Fix this
 //* cleanOptionsT[choiceT].features[countStim]*
 //cleanOptionsT[choiceT].features[countStim];
 		}
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = 
 				s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *1
-// Fix this
 //cleanOptionsT[choiceT].features[countStim] 
 				/ (sums2x2 + s2R);// equation (10) in Sutton 1992b
 			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
@@ -563,7 +460,6 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 					alphas[countStim][cleanOptionsT[choiceT].features[countStim]] *
 					delta)*
 				ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1);
-// Fix this
 //cleanOptionsT[choiceT].features[countStim]); // equation (15)
 		}
 		
@@ -596,23 +492,23 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 			// from eq. (20) in Sutton 1992b, cf (5) or fig 2 in Sutton 1992a
 			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
 				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
-				ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1)+
+ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1) +
 // Fix this
 //cleanOptionsT[choiceT].features[countStim]) +
-				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 
-				delta;
+alphas[countStim][cleanOptionsT[choiceT].features[countStim]] *
+delta;
 		}
 		// Based on @dayan_Learning_2000 and @sutton_Gain_1992
 		break;
   default:
-    break;
+	  break;
   }
 }
 
 
 void agent::forget(double forRat) {
-	for (int i=0; i < numSti;++i) {
-		for (int j=0; j < numFeat; ++j) {
+	for (int i = 0; i < numSti; ++i) {
+		for (int j = 0; j < numFeat; ++j) {
 			if (j != cleanOptionsT[choiceT].features[i])
 				values[i][j] -= forRat;
 		}
@@ -622,15 +518,15 @@ void agent::forget(double forRat) {
 void agent::printIndData(ofstream &learnSeries, int seed, json &param) {
 	learnSeries << seed << '\t' << age << '\t';
 	learnSeries << alpha << '\t' << gamma << '\t' << tau << '\t' << neta << '\t';
-	learnSeries << cleanOptionsT[0].mytype << '\t';
+	learnSeries << cleanOptionsT[0].mytype << '\t' << cleanOptionsT[0].species << '\t';
 	for (int i = 0; i < numSti; ++i) learnSeries << cleanOptionsT[0].features[i] << '\t';
-	learnSeries << cleanOptionsT[1].mytype << '\t';
+	learnSeries << cleanOptionsT[1].mytype << '\t' << cleanOptionsT[0].species << '\t';
 	for (int i = 0; i < numSti; ++i) learnSeries << cleanOptionsT[1].features[i] << '\t';
-	learnSeries << cleanOptionsT[choiceT].mytype << '\t';
+	learnSeries << choiceT +1 << '\t';
 	learnSeries << currentReward << '\t' << cumulReward << '\t' << negReward << '\t';
-	for (int j = 0; j < numSti; j++){
-		for (int k = 0; k < numFeat + 1; ++k) learnSeries << values[j][k] << '\t';
-		learnSeries << alphas[j] << '\t';
+	for (int j = 0; j < numSti; j++) {
+		for (int k = 0; k < numFeat + 1; ++k)
+			learnSeries << values[j][k] << '\t' << alphas[j][k] << '\t';
 	}
 	learnSeries << endl;
 }
@@ -643,15 +539,15 @@ double agent::softMax(double &value1, double &value2) {
 }
 
 
-class PIATyp1 :public agent{				// Partially Informed Agent (PIA)	
-	public:
+class PIATyp1 :public agent {				// Partially Informed Agent (PIA)	
+public:
 	PIATyp1(double alphaI, double gammaI, double tauI, double netaI,
-		int _numSti, int _numFeat, double initVal=0)
-	:agent(alphaI, gammaI, tauI, netaI,_numSti,_numFeat){
+		int _numSti, int _numFeat, double initVal = 0)
+		:agent(alphaI, gammaI, tauI, netaI, _numSti, _numFeat) {
 		numSti = _numSti;
 	}
-	virtual void rebirth_a(double initVal=0) {
-	    rebirth(initVal);
+	virtual void rebirth_a(double initVal = 0) {
+		rebirth(initVal);
 	}
 	virtual void value() {
 		valuesT1[0] = 0, valuesT1[1] = 0;
@@ -661,7 +557,7 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 		}
 
 	}
-	virtual void choice(){
+	virtual void choice() {
 		choiceT1 = rnd::bernoulli(softMax(valuesT1[1], valuesT1[0]));
 		/*if (rnd::uniform() < softMax(valuesT1[0], valuesT1[1])){
 				choiceT1 = 0;
@@ -681,20 +577,31 @@ class PIATyp1 :public agent{				// Partially Informed Agent (PIA)
 
 // Functions external to the agent
 
-rnd::discrete_distribution clientProbs(json param, string clientType) {
+rnd::discrete_distribution clientProbs(json param, string clientType,
+	string set) {
 	int numSps = param[clientType].size();
 	rnd::discrete_distribution SpProb(numSps);
-	for (json::iterator itSpClient = param[clientType].begin();
-		itSpClient != param[clientType].end(); ++itSpClient) {
-		SpProb[distance(param[clientType].begin(), itSpClient)] =
+	for (json::iterator itSpClient = param[clientType][set].begin();
+		itSpClient != param[clientType][set].end(); ++itSpClient) {
+		SpProb[distance(param[clientType][set].begin(), itSpClient)] =
 			itSpClient->at("relAbun");
 	}
 	return (SpProb);
 }
 
-void draw(client trainingSet[], json param,
-	rnd::discrete_distribution visitSpProb,
-	rnd::discrete_distribution residSpProb) {
+void draw(client trainingSet[], json param) {
+
+	vector<rnd::discrete_distribution>  visitSpProb;
+	vector<rnd::discrete_distribution> residSpProb;
+	// Fix the distributions!!!!
+	json::iterator itSets2 = param["visitors"].begin();
+	for (json::iterator itSets = param["residents"].begin();
+		itSets != param["residents"].end(); ++itSets, ++itSets2){
+		residSpProb.push_back(clientProbs(param, "residents",
+			itSets.key()));
+		visitSpProb.push_back(clientProbs(param, "visitors",
+			itSets2.key()));
+	}
 	double cumProbs[3] = { param["ResProb"].get<double>(),
 		(param["ResProb"].get<double>() +
 			param["VisProb"].get<double>()),	1 };
@@ -707,32 +614,46 @@ void draw(client trainingSet[], json param,
 		trialSpChanges[j] = j*param["totRounds"].get<int>()*2 /
 		param["visitors"].size();
 	for (int i = 0; i < param["totRounds"].get<int>() * 2; i++) {
-		int Sp;
+		int SpSet;
 		if (param["seqSp"]) {
 			int j = 0;
 			while (i >= trialSpChanges[j]) {
-				++j, Sp = j;
+				++j, SpSet = j;
 			}
 		}
 		rndNum = rnd::uniform();
 		if (rndNum < cumProbs[0]) {
 			string chosenSp = "Sp";
-			if (param["seqSp"]) chosenSp.append(itos(Sp));
-			else chosenSp.append(itos(residSpProb.sample() + 1));
+			string chosenSet = "set";
+			if (param["seqSp"]) {
+				chosenSp.append(itos(residSpProb[SpSet-1].sample() + 1));
+				chosenSet.append(itos(SpSet));
+			}
+			else {
+				chosenSet.append("1");
+				chosenSp.append(itos(residSpProb[SpSet-1].sample() + 1));
+			}
 			trainingSet[i] = client(resident,
-				param["residents"][chosenSp]["alphas"],
-				param["residents"][chosenSp]["betas"],
-				param["residents"][chosenSp]["reward"], chosenSp,
+				param["residents"][chosenSet][chosenSp]["alphas"],
+				param["residents"][chosenSet][chosenSp]["betas"],
+				param["residents"][chosenSet][chosenSp]["reward"], chosenSp,
 				int(param["numFeat"]));
 		}
 		else if (rndNum < cumProbs[1]) {
 			string chosenSp = "Sp";
-			if (param["seqSp"]) chosenSp.append(itos(Sp));
-			else chosenSp.append(itos(residSpProb.sample() + 1));
+			string chosenSet = "set";
+			if (param["seqSp"]) {
+				chosenSet.append(itos(SpSet));
+				chosenSp.append(itos(residSpProb[SpSet-1].sample() + 1));
+			}				
+			else {
+				chosenSet.append("1");
+				chosenSp.append(itos(residSpProb[SpSet-1].sample() + 1));
+			}
 			trainingSet[i] = client(visitor, 
-				param["visitors"][chosenSp]["alphas"],
-				param["visitors"][chosenSp]["betas"],
-				param["visitors"][chosenSp]["reward"], chosenSp,
+				param["visitors"][chosenSet][chosenSp]["alphas"],
+				param["visitors"][chosenSet][chosenSp]["betas"],
+				param["visitors"][chosenSet][chosenSp]["reward"], chosenSp,
 				int(param["numFeat"]));
 		}
 		else {
@@ -795,18 +716,18 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 	else {
 		indOutput << "Training" << '\t' << "Age" << '\t' << "Alpha" << '\t';
 		indOutput << "Gamma" << '\t' << "Tau" << '\t' << "Neta" << '\t';
-		indOutput <<  "Client1" << '\t';
+		indOutput <<  "Client1" << '\t' << "SpC1" << '\t';
 		for (int k = 0; k < int(param["numSti"]); ++k)
 			indOutput << "Stim1." + itos(k) << '\t';
-		indOutput << "Client2" << '\t';
+		indOutput << "Client2" << '\t' << "SpC2" << '\t';
 		for (int k = 0; k < int(param["numSti"]); ++k)
 			indOutput << "Stim2." + itos(k) << '\t';
 		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
 		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
 		for (int i=0; i< int(param["numSti"]);++i){
 			for (int j = 0; j < int(param["numFeat"]) + 1; ++j)
-				indOutput << "Val." + itos(i) + itos(j) << "\t";
-			indOutput << "alpha." + itos(i) << "\t";
+				indOutput << "Val." + itos(i) + itos(j) << "\t"
+				<< "alpha." + itos(i) + itos(j) << "\t";
 		}
 		indOutput << endl;
 	}
@@ -824,7 +745,7 @@ int main(int argc, char* argv[])
 	// structure:
 
 	//json param;
-	//param["totRounds"] = 1000;
+	//param["totRounds"] = 30;
 	//param["ResReward"] = 1;
 	//param["VisReward"] = param["resreward"];
 	//param["ResProb"] =  0.3;
@@ -852,23 +773,23 @@ int main(int argc, char* argv[])
 	//param["seqSp"] = true;
 	//param["folder"]       = "m:/Projects/CleanSarsa/Simulations/test_/";
 
-	//param["visitors"]["Sp1"]["alphas"] = { 1 };
-	//param["visitors"]["Sp1"]["betas"] = { 0.01 };
-	//param["visitors"]["Sp1"]["relAbun"] = 1;
-	//param["visitors"]["Sp1"]["reward"] = { 1, 0 };
-	//param["visitors"]["Sp2"]["alphas"] = { 1, 0.01 };
-	//param["visitors"]["Sp2"]["betas"] = { 0.01, 1 };
-	//param["visitors"]["Sp2"]["relAbun"] = 1;
-	//param["visitors"]["Sp2"]["reward"] = { 1, 0 };
-	//param["residents"]["Sp1"]["alphas"] = { 0.5 , 1 };
-	//param["residents"]["Sp1"]["betas"] = { 1,1};
-	//param["residents"]["Sp1"]["relAbun"] = 1;
-	//param["residents"]["Sp1"]["reward"] = { 2, 0 };
-	//param["residents"]["Sp2"]["alphas"] = { 0.5 , 1 };
-	//param["residents"]["Sp2"]["betas"] = { 1,1 };
-	//param["residents"]["Sp2"]["relAbun"] = 1;
-	//param["residents"]["Sp2"]["reward"] = { 2, 0 };
-	
+	//param["visitors"]["set2"]["Sp1"]["alphas"] = { 1 };
+	//param["visitors"]["set2"]["Sp1"]["betas"] = { 0.01 };
+	//param["visitors"]["set2"]["Sp1"]["relAbun"] = 1;
+	//param["visitors"]["set2"]["Sp1"]["reward"] = { 1, 0 ,0};
+	//param["visitors"]["set1"]["Sp1"]["alphas"] = { 1, 0.01 };
+	//param["visitors"]["set1"]["Sp1"]["betas"] = { 0.01, 1 };
+	//param["visitors"]["set1"]["Sp1"]["relAbun"] = 1;
+	//param["visitors"]["set1"]["Sp1"]["reward"] = { 1, 0 ,0};
+	//param["residents"]["set2"]["Sp1"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["set2"]["Sp1"]["betas"] = { 1,1};
+	//param["residents"]["set2"]["Sp1"]["relAbun"] = 1;
+	//param["residents"]["set2"]["Sp1"]["reward"] = { 2, 0 ,0};
+	//param["residents"]["set1"]["Sp1"]["alphas"] = { 0.5 , 1 };
+	//param["residents"]["set1"]["Sp1"]["betas"] = { 1,1 };
+	//param["residents"]["set1"]["Sp1"]["relAbun"] = 1;
+	//param["residents"]["set1"]["Sp1"]["reward"] = { 2, 0,0 };
+	//
 	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_1.json");
 
 	// Read parameters
@@ -898,8 +819,6 @@ int main(int argc, char* argv[])
 
 		
 	rnd::set_seed(param["seed"].get<int>());
-	rnd::discrete_distribution residSpProbs = clientProbs(param, "residents");
-	rnd::discrete_distribution visitSpProbs = clientProbs(param, "visitors");
 
 	client *clientSet;
 	clientSet = new client[param["totRounds"].get<int>() * 2];
@@ -933,12 +852,10 @@ int main(int argc, char* argv[])
 									param, 0, *itVisProb, *itResProb);
 								for (int i = 0; i < int(param["trainingRep"]); i++){
 									idClientSet = 0;
-									draw(clientSet,param, visitSpProbs,
-										residSpProbs);
+									draw(clientSet,param);
 									for (int j = 0; j < int(param["totRounds"]); j++){
 										//cout << j << '\t' << endl;
-										learners[k]->act(clientSet, idClientSet, param,
-											visitSpProbs, residSpProbs);
+										learners[k]->act(clientSet,idClientSet, param);
 										learners[k]->update(param["attenMech"],
 											param["maxAlpha"]);
 										learners[k]->forget(double(param["forRat"]));

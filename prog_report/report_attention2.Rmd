@@ -1,0 +1,992 @@
+---
+title: "The role of attention in learning"
+author: "Andres Quiñones"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:  
+  bookdown::pdf_document2:
+     number_sections : false 
+     toc: false 
+bibliography: "../Cleanerlearning.bib"
+keep_tex: yes
+fig_caption: yes
+header-includes:
+  - \usepackage{amsmath}
+---
+
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,warning = FALSE)
+library(here)
+```
+
+```{r}
+library(here)
+library(data.table)
+options(datatable.print.class = TRUE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggpubr)
+source(here("AccFunct.R"))
+source(here("aesth_par.R"))
+library("jsonlite")
+library(EnvStats)
+
+set.seed(0)
+
+interv<-101
+plotInterv<-100 
+
+scenario<-"Olles1"
+# see /Olle_imp/comp_stim_olle.pdf
+
+# 
+# param.base<-list(totRounds=4000,ResReward=1,VisReward=1,
+#             ResProb=c(0.5),
+#             VisProb=c(0.5),
+#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+#             propfullPrint = 0.7,
+#             alphaT=0.01,printGen=1,seed=1, gammaRange=I(c(0)),
+#             tauRange=c(0.5),netaRange=c(0),
+#             attenMech = 1,maxAlpha=0.5,
+#             seqSp = TRUE,
+#             numSti = 4, # Number of different stimuli
+#             numFeat = 2, # Number of different features for each stimuli
+#             folderL=paste(here("Simulations","test_"),"/",sep=""))
+# 
+# param<-param.base
+# 
+# # Sp2
+# param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set1$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.5)
+# param$visitors$set1$Sp1$relAbun=1
+# #Sp1
+# param$residents$set1$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set1$Sp1$betas<-c(2,1,0,0)
+# param$residents$set1$Sp1$relAbun=1
+# param$residents$set1$Sp1$reward<-c(2,0,0,0,0.5)
+# 
+# # Sp2
+# param$visitors$set2$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set2$Sp1$reward<-c(1,0,0,0,0.5)
+# param$visitors$set2$Sp1$relAbun=1
+# # Sp1
+# param$residents$set2$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp1$betas<-c(2,1,0,0)
+# param$residents$set2$Sp1$relAbun=1
+# param$residents$set2$Sp1$reward<-c(2,0,0,0,0.5)
+# 
+# # Sp4
+# param$visitors$set2$Sp2$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp2$betas<-c(2,1,1,0)
+# param$visitors$set2$Sp2$reward<-c(2,0,1,0,0.5)
+# param$visitors$set2$Sp2$relAbun=1
+# # Sp3
+# param$residents$set2$Sp2$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp2$betas<-c(2,0,0,1)
+# param$residents$set2$Sp2$relAbun=1
+# param$residents$set2$Sp2$reward<-c(2,0,0,-1,0.5)
+# #
+
+Param<-"attenMech"
+rangParam<-c(0,1,3,4,5,6,7)
+labAtt<-c("Rescola-Wagner","Mackintosh","Mackintosh2",
+          "Pearce-Hall","Hybrid","K1","IBDB")
+
+# check_create.dir(here("Simulations"),param = rep(scenario,1),
+#                  values = c(""))
+# 
+# parFiles(paramJson = param,rangParam = rangParam,Param = Param)
+# 
+# Sys.setenv(scen=scenario,nodes=length(rangParam))
+
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+
+```
+
+
+
+<!-- ```{bash} -->
+<!-- cd ../Simulations/$scen -->
+
+<!-- find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe & -->
+<!-- ``` -->
+
+
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for two stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE) 
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+
+
+
+# rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
+#                                Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+#                 fcase(Stim1.1==0,Val.10,
+#                       Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+#               Val.Clien2=fcase(Stim2.0==0,Val.00,
+#                                Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+#                 fcase(Stim2.1==0,Val.10,
+#                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = rangParam,
+                      labels = labAtt)]
+
+rawData[,`:=`(Val.Client1=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim1.tmp<-x[1:params$numSti]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim1.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+}),Val.Client2=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim2.tmp<-x[(params$numSti+1):(2*params$numSti)]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim2.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+})),.SDcols=patterns("Stim.|Val.")]
+
+
+# numSti <- 4
+# numFeat <- 2
+# 
+# rawData[
+#   ,paste0("Val_Client", 1:2) := as.data.table(
+#     colSums(
+#       aperm(
+#         array(
+#           unlist(rawData[,.SD , .SDcols = grep("Val.",
+#                                                names(rawData), value = TRUE)])[
+#             1:.N + (unlist(rawData[,.SD ,
+#                                 .SDcols = grep("Stim", names(rawData),
+#                                 value = TRUE)]) +
+#                       rep(c(0, numFeat + 1), each = .N))*.N
+#           ],
+#           c(.N, numSti, 2)
+#         ),
+#         c(2, 1, 3)
+#       )
+#     )
+#   )
+# ]
+
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
+              half=factor(ifelse(Age<max(Age)/2,"before","after"),
+                          levels=c("before","after")))]
+
+rawData[,`:=`(Species1=factor(interaction(Client1,SpC1),
+                              labels = paste0("Sp",1:4)),
+              Species2=factor(interaction(Client2,SpC2),
+                              labels = paste0("Sp",1:4))
+                              )]
+
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,(grep("Stim.*",names(rawData),value = TRUE)):=
+          lapply(.SD,factor),.SDcols=patterns("Stim.*")]
+
+ggarrange(
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[1:2])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[3:4])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.2))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 3")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.3))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 4")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45))
+)
+```
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in both stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+plotInterv<-50
+
+ggplot(rawData[Age%%plotInterv==0],
+       aes(y=Val.Client1,x=Age,color=Species1))+
+  geom_point()+ylab("Value")+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  ylim(0,4)+
+  labs(color="Attention \n mechanism", shape="Objects")+
+  geom_hline(yintercept = c(1,2,3),color="grey")+
+  geom_vline(xintercept = max(rawData$Age/2))+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+
+```
+
+```{r RMSE}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  # ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r RMSE1}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the full information scenario. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }  
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:12],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age %% plotInterv ==0
+                          ],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=10))+
+  # geom_path()+
+  ylim(0,2)+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+
+
+```
+
+```{r}
+
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+plotInterv<-100
+
+ggplot(data = Alphas.long[Age%%plotInterv==0],
+       aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=100),size=0.1)+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+# ```{r}
+# 
+# expecValSp<-data.table(ObjSp=unique(rawData[,Species1]),
+#                        value=c(0,2,1,1,3))
+# 
+# rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
+#               valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
+# 
+# rawData[,correctChoice:=fcase(valSp_1-valSp_2>0 && Choice ==1,1,
+#                               valSp_1-valSp_2>0 && Choice ==2,0,
+#                               valSp_1-valSp_2<0 && Choice ==2,1,
+#                               valSp_1-valSp_2>0 && Choice ==1,0)]
+# 
+# 
+# 
+# ```
+
+
+```{r}
+
+scenario<-"Olles2"
+
+# param.base<-list(totRounds=4000,ResReward=1,VisReward=1,
+#             ResProb=c(0.5),
+#             VisProb=c(0.5),
+#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+#             propfullPrint = 0.7,
+#             alphaT=0.2,printGen=1,seed=1, gammaRange=I(c(0)),
+#             tauRange=c(0.5),netaRange=c(0),
+#             attenMech = 1,maxAlpha=0.5,
+#             seqSp = TRUE,
+#             numSti = 4, # Number of different stimuli
+#             numFeat = 2, # Number of different features for each stimuli
+#             folderL=paste(here("Simulations","test_"),"/",sep=""))
+# 
+# param<-param.base
+
+# # Sp2
+# param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set1$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.5)
+# param$visitors$set1$Sp1$relAbun=1
+# #Sp1
+# param$residents$set1$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set1$Sp1$betas<-c(2,1,0,0)
+# param$residents$set1$Sp1$relAbun=1
+# param$residents$set1$Sp1$reward<-c(2,0,0,0,0.5)
+# 
+# # Sp2
+# param$visitors$set2$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set2$Sp1$reward<-c(1,0,0,0,0.5)
+# param$visitors$set2$Sp1$relAbun=1
+# # Sp1
+# param$residents$set2$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp1$betas<-c(2,1,0,0)
+# param$residents$set2$Sp1$relAbun=1
+# param$residents$set2$Sp1$reward<-c(2,0,0,0,0.5)
+# 
+# # Sp4
+# param$visitors$set2$Sp2$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp2$betas<-c(2,1,1,0)
+# param$visitors$set2$Sp2$reward<-c(2,0,1,0,0.5)
+# param$visitors$set2$Sp2$relAbun=1
+# # Sp3
+# param$residents$set2$Sp2$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp2$betas<-c(2,0,0,1)
+# param$residents$set2$Sp2$relAbun=1
+# param$residents$set2$Sp2$reward<-c(2,0,0,-1,0.5)
+#
+
+Param<-"attenMech"
+rangParam<-c(0,1,3,4,5,6,7)
+labAtt<-c("Rescola-Wagner","Mackintosh","Mackintosh2",
+          "Pearce-Hall","Hybrid","K1","IBDB")
+
+# check_create.dir(here("Simulations"),param = rep(scenario,1),
+#                  values = c(""))
+
+# parFiles(paramJson = param,rangParam = rangParam,Param = Param)
+
+# Sys.setenv(scen=scenario,nodes=length(rangParam))
+
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+
+```
+
+
+
+<!-- ```{bash} -->
+<!-- cd ../Simulations/$scen -->
+
+<!-- find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe & -->
+<!-- ``` -->
+
+
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for two stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE) 
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+
+
+
+# rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
+#                                Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+#                 fcase(Stim1.1==0,Val.10,
+#                       Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+#               Val.Clien2=fcase(Stim2.0==0,Val.00,
+#                                Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+#                 fcase(Stim2.1==0,Val.10,
+#                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = rangParam,
+                      labels = labAtt)]
+
+rawData[,`:=`(Val.Client1=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim1.tmp<-x[1:params$numSti]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim1.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+}),Val.Client2=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim2.tmp<-x[(params$numSti+1):(2*params$numSti)]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim2.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+})),.SDcols=patterns("Stim.|Val.")]
+
+
+# numSti <- 4
+# numFeat <- 2
+# 
+# rawData[
+#   ,paste0("Val_Client", 1:2) := as.data.table(
+#     colSums(
+#       aperm(
+#         array(
+#           unlist(rawData[,.SD , .SDcols = grep("Val.",
+#                                                names(rawData), value = TRUE)])[
+#             1:.N + (unlist(rawData[,.SD ,
+#                                 .SDcols = grep("Stim", names(rawData),
+#                                 value = TRUE)]) +
+#                       rep(c(0, numFeat + 1), each = .N))*.N
+#           ],
+#           c(.N, numSti, 2)
+#         ),
+#         c(2, 1, 3)
+#       )
+#     )
+#   )
+# ]
+
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
+              half=factor(ifelse(Age<max(Age)/2,"before","after"),
+                          levels=c("before","after")))]
+
+rawData[,`:=`(Species1=factor(interaction(Client1,SpC1),
+                              labels = paste0("Sp",1:4)),
+              Species2=factor(interaction(Client2,SpC2),
+                              labels = paste0("Sp",1:4))
+                              )]
+
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,(grep("Stim.*",names(rawData),value = TRUE)):=
+          lapply(.SD,factor),.SDcols=patterns("Stim.*")]
+
+ggarrange(
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[1:2])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[3:4])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.2))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 3")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.3))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 4")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45))
+)
+```
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in both stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+plotInterv<-50
+
+ggplot(rawData[Age%%plotInterv==0],
+       aes(y=Val.Client1,x=Age,color=Species1))+
+  geom_point()+ylab("Value")+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  ylim(0,4)+
+  labs(color="Attention \n mechanism", shape="Objects")+
+  geom_hline(yintercept = c(1,2,3),color="grey")+
+  geom_vline(xintercept = max(rawData$Age/2))+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+
+```
+
+```{r RMSE3}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  # ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r RMSE6}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the full information scenario. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }  
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:12],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age %% plotInterv ==0
+                          ],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=10))+
+  # geom_path()+
+  ylim(0,2)+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+
+
+```
+
+```{r}
+
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+plotInterv<-100
+
+ggplot(data = Alphas.long[Age%%plotInterv==0],
+       aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=100),size=0.1)+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
+
+
+```{r}
+
+scenario<-"Olles3"
+
+# param.base<-list(totRounds=4000,ResReward=1,VisReward=1,
+#             ResProb=c(0.5),
+#             VisProb=c(0.5),
+#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+#             propfullPrint = 0.7,
+#             alphaT=0.01,printGen=1,seed=1, gammaRange=I(c(0)),
+#             tauRange=c(0.5),netaRange=c(0),
+#             attenMech = 1,maxAlpha=0.5,
+#             seqSp = TRUE,
+#             numSti = 4, # Number of different stimuli
+#             numFeat = 2, # Number of different features for each stimuli
+#             folderL=paste(here("Simulations","test_"),"/",sep=""))
+# 
+# param<-param.base
+# 
+# # Sp2
+# param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set1$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.2)
+# param$visitors$set1$Sp1$relAbun=1
+# #Sp1
+# param$residents$set1$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set1$Sp1$betas<-c(2,1,0,0)
+# param$residents$set1$Sp1$relAbun=1
+# param$residents$set1$Sp1$reward<-c(2,0,0,0,0.2)
+# 
+# # Sp2
+# param$visitors$set2$Sp1$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp1$betas<-c(1,0,0,0)
+# param$visitors$set2$Sp1$reward<-c(1,0,0,0,0.2)
+# param$visitors$set2$Sp1$relAbun=1
+# # Sp1
+# param$residents$set2$Sp1$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp1$betas<-c(2,1,0,0)
+# param$residents$set2$Sp1$relAbun=1
+# param$residents$set2$Sp1$reward<-c(2,0,0,0,0.2)
+# 
+# # Sp4
+# param$visitors$set2$Sp2$alphas<-c(0,0,0,0)
+# param$visitors$set2$Sp2$betas<-c(2,1,1,0)
+# param$visitors$set2$Sp2$reward<-c(2,0,1,0,0.2)
+# param$visitors$set2$Sp2$relAbun=1
+# # Sp3
+# param$residents$set2$Sp2$alphas<-c(0,0,0,0)
+# param$residents$set2$Sp2$betas<-c(2,0,0,1)
+# param$residents$set2$Sp2$relAbun=1
+# param$residents$set2$Sp2$reward<-c(2,0,0,-1,0.2)
+# #
+
+Param<-"attenMech"
+rangParam<-c(0,1,3,4,5,6,7)
+labAtt<-c("Rescola-Wagner","Mackintosh","Mackintosh2",
+          "Pearce-Hall","Hybrid","K1","IBDB")
+
+# check_create.dir(here("Simulations"),param = rep(scenario,1),
+#                  values = c(""))
+# 
+# parFiles(paramJson = param,rangParam = rangParam,Param = Param)
+# 
+# Sys.setenv(scen=scenario,nodes=length(rangParam))
+
+params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
+
+```
+
+
+
+<!-- ```{bash} -->
+<!-- cd ../Simulations/$scen -->
+
+<!-- find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe & -->
+<!-- ``` -->
+
+
+```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for two stimulus.'}
+# load test data
+list_files<-list.files(here("Simulations",scenario),full.names = TRUE) %>%
+  grep(pattern = "PIA",value = TRUE) 
+
+rawData<-do.call(rbind,lapply(list_files,FUN = function(file){
+  tmpData<-fread(file)
+  relPar<-strsplit(file,"_")[[1]] %>% grep(pattern = "AttMech",value = TRUE)
+  parVal<-gsub("[^[:digit:]]", "", relPar)  %>%  as.numeric
+  tmpData[,AttMech:=parVal]
+  return(tmpData)
+}))
+
+
+
+# rawData[,`:=`(Val.Client1=fcase(Stim1.0==0,Val.00,
+#                                Stim1.0==1,Val.01,Stim1.0==2,Val.02)+
+#                 fcase(Stim1.1==0,Val.10,
+#                       Stim1.1==1,Val.11,Stim1.1==2,Val.12),
+#               Val.Clien2=fcase(Stim2.0==0,Val.00,
+#                                Stim2.0==1,Val.01,Stim2.0==2,Val.02)+
+#                 fcase(Stim2.1==0,Val.10,
+#                       Stim2.1==1,Val.11,Stim2.1==2,Val.12))]
+rawData[,AttMech:=factor(AttMech,levels = rangParam,
+                      labels = labAtt)]
+
+rawData[,`:=`(Val.Client1=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim1.tmp<-x[1:params$numSti]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim1.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+}),Val.Client2=apply(.SD,MARGIN = 1,FUN = function(x){
+  x<-as.numeric(x)
+  Stim2.tmp<-x[(params$numSti+1):(2*params$numSti)]+1
+  vals<-x[(params$numSti*2+1):
+            (params$numSti*2+params$numSti*(1+params$numFeat))]
+  locVal<-Stim2.tmp+(params$numFeat+1)*(0:(params$numSti-1))
+  return(sum(vals[locVal]))
+})),.SDcols=patterns("Stim.|Val.")]
+
+
+# numSti <- 4
+# numFeat <- 2
+# 
+# rawData[
+#   ,paste0("Val_Client", 1:2) := as.data.table(
+#     colSums(
+#       aperm(
+#         array(
+#           unlist(rawData[,.SD , .SDcols = grep("Val.",
+#                                                names(rawData), value = TRUE)])[
+#             1:.N + (unlist(rawData[,.SD ,
+#                                 .SDcols = grep("Stim", names(rawData),
+#                                 value = TRUE)]) +
+#                       rep(c(0, numFeat + 1), each = .N))*.N
+#           ],
+#           c(.N, numSti, 2)
+#         ),
+#         c(2, 1, 3)
+#       )
+#     )
+#   )
+# ]
+
+
+rawData[,`:=`(Client1=factor(Client1,levels = c(0,1,2),labels = c("Object 1",
+                                                       "Object 2","absence")),
+              Client2=factor(Client2,levels = c(0,1,2),labels=c("Object 1",
+                                                       "Object 2","absence")),
+              Stim1.0=factor(Stim1.0),Stim2.0=factor(Stim2.0),
+              Stim1.1=factor(Stim1.1),Stim2.1=factor(Stim2.1),
+              half=factor(ifelse(Age<max(Age)/2,"before","after"),
+                          levels=c("before","after")))]
+
+rawData[,`:=`(Species1=factor(interaction(Client1,SpC1),
+                              labels = paste0("Sp",1:4)),
+              Species2=factor(interaction(Client2,SpC2),
+                              labels = paste0("Sp",1:4))
+                              )]
+
+rawData[,(grep("Val.*",names(rawData),value = TRUE)):=
+          lapply(.SD,as.numeric),.SDcols=patterns("Val.*")]
+
+rawData[,(grep("Stim.*",names(rawData),value = TRUE)):=
+          lapply(.SD,factor),.SDcols=patterns("Stim.*")]
+
+ggarrange(
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.0))+
+    geom_bar(position="fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[1:2])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 1")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.1))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[3:4])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 2")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.2))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 3")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45)),
+  ggplot(data=rawData[Client1!="absence"],aes(x=Species1,fill=Stim1.3))+
+    geom_bar(position = "fill")+
+    ylab("")+xlab("")+
+    facet_grid(~half)+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    # scale_fill_manual(values = red1Cols[5:6])+
+    guides(fill=guide_legend(title="Feature"))+labs(title="Stimulus 4")+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle = 45))
+)
+```
+
+```{r,fig.cap='Dynamics of value estimation for the two objects (a) and performance (b) in the scenario with partial information in both stimuli dimensions.  Grey lines in a correspond to the real value of the two objects.Grey line in b correspond to the expected proportion of wrong choices given the exploration parameter \tau in the desicion making rule.'}
+
+val.vars<-names(rawData) %>% grep(pattern = "Val.*",value = TRUE)
+
+
+plotInterv<-50
+
+ggplot(rawData[Age%%plotInterv==0],
+       aes(y=Val.Client1,x=Age,color=Species1))+
+  geom_point()+ylab("Value")+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  ylim(0,4)+
+  labs(color="Attention \n mechanism", shape="Objects")+
+  geom_hline(yintercept = c(1,2,3),color="grey")+
+  geom_vline(xintercept = max(rawData$Age/2))+
+  theme_classic()+
+  theme(legend.title = element_text(size = 5), 
+             legend.text = element_text(size = 5),
+        legend.margin = margin(-0.4,0,0,0, unit="cm"))
+
+```
+
+```{r RMSE4}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  # ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r RMSE5}
+
+rawData[,estVal:=ifelse(Choice==1,Val.Client1,Val.Client2)]
+
+RMSE.data<-rawData[,sqrt(sum((estVal-Current.Reward)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+
+```
+
+```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the full information scenario. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }  
+Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = val.vars[1:12],
+                  variable.name = "Features")
+ggplot(data = Values.long[Age %% plotInterv ==0
+                          ],
+       aes(x=Age,y=value,color=Features))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    position = position_dodge(width=10))+
+  # geom_path()+
+  ylim(0,2)+
+  geom_hline(yintercept = c(1,2),color="black")+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+
+
+```
+
+```{r}
+
+Alphas.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
+                  measure.vars = patterns("alpha.*"),
+                  variable.name = "Stimulus")
+
+plotInterv<-100
+
+ggplot(data = Alphas.long[Age%%plotInterv==0],
+       aes(x=Age,y=value,color=Stimulus))+
+  stat_summary(fun.data = function(x) {
+    xFive<-fivenum(x)
+    return(data.frame(y=xFive[3],ymax=xFive[4],ymin=xFive[2]))},
+    geom = "pointrange",position = position_dodge(width=100),size=0.1)+
+  # +
+  # geom_step()+
+  facet_wrap(~AttMech)+
+  theme_classic()
+
+```
