@@ -59,6 +59,7 @@ param<-param.base
 # Sp2
 param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
 param$visitors$set1$Sp1$betas<-c(1,0,0,0)
+param$visitors$set1$Sp1$quant<-c(0.5,0,0,0)
 param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.5)
 param$visitors$set1$Sp1$relAbun=1
 #Sp1

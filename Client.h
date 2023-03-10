@@ -20,6 +20,7 @@ class client {
 		client(client_ty type, 
 			std::vector<double> alphas,
 			std::vector<double> betas,
+			std::vector<double> quant,
 			std::vector<double> rew, 
 			std::string _species,
 			int _numStim);
@@ -31,6 +32,7 @@ class client {
 		void rebirth(client_ty type, 
 			std::vector<double> alphas,
 			std::vector<double> betas,
+			std::vector<double> quant,
 			std::vector<double> rew,
 			std::string _species, 
 			int _numStim);
@@ -38,7 +40,7 @@ class client {
 		client_ty mytype;
 		// The type of the client
 		int numStim;
-		int features[10]; 
+		double features[10]; 
 		// 
 		double reward;
 		std::string species;
@@ -71,8 +73,10 @@ client::client()
 }
 
 client::client(client_ty type, std::vector<double> alphas,
-			   std::vector<double> betas,
-               std::vector<double> rew, std::string _species, int _numFeat = 0 ) {
+		 std::vector<double> betas,
+		 std::vector<double> quant = { 0,0 },
+         std::vector<double> rew, 
+		std::string _species, int _numFeat = 0 ) {
 		 /*,double mMainRGB[], double sdMainRGB[], double &pSecCol,
 	double mSecRGB[], double sdSecRGB[], double &pStripes, double &pDots, double minHL[])*/
 	mytype = type;
@@ -87,7 +91,8 @@ client::client(client_ty type, std::vector<double> alphas,
 	else {
 		for (size_t i = 0; i < 10; i++) {
 			if (i < numStim) {
-				if (alphas[i] == 0) features[i] = betas[i];
+				if (alphas[i] == 0)
+					features[i] = betas[i] + rnd::normal(0, quant[i]);
 				else features[i] = 1 + 
 					rnd::beta_binomial(_numFeat - 1, alphas[i], betas[i]);
 			}
@@ -103,15 +108,16 @@ client::client(client_ty type, std::vector<double> alphas,
 	}
 }
 
-void client::rebirth(client_ty type=absence,
+void client::rebirth(client_ty type = absence,
 	std::vector<double> alphas = { 1,1 },
-	std::vector<double> betas = {1,1},
+	std::vector<double> betas = { 1,1 },
+	std::vector<double> quant = { 0,0 },
 	std::vector<double> rew = { 0,0 }, std::string _species = "NA",
 	int _numFeat = 0) {
 	numStim = alphas.size();
 	mytype = type;
 	species = _species;
-	if(mytype == absence) {
+	if (mytype == absence) {
 		for (size_t i = 0; i < numStim; i++) {
 			features[i] = 0;
 			reward = 0;
@@ -120,7 +126,8 @@ void client::rebirth(client_ty type=absence,
 	else {
 		for (size_t i = 0; i < 10; i++) {
 			if (i < numStim) {
-				if (alphas[i] == 0) features[i] = betas[i];
+				if (alphas[i] == 0)
+					features[i] = betas[i] + rnd::normal(0, quant[i]);
 				else features[i] = 1 +
 					rnd::beta_binomial(_numFeat - 1, alphas[i], betas[i]);
 			}

@@ -115,16 +115,16 @@ public:
 	// Calculate new \alpha (associability) for each stimuli
 	void updateAlpha(double lambda, double max,int attenMech);
 protected:
-	double values[10][5];																							
+	double values[10];																							
 	// array storing the estimated values of different features
-	double alphas[10][5];
+	double alphas[10];
 	// array storing the speed of learning for different stimuli dimentions
-	double beta_k[10][5];
+	double beta_k[10];
 	// array storing an estimate of uncertainty in predictions
-	double h_k[10][5];
+	double h_k[10];
 	// array storing an estimate of uncertainty in predictions introduced in 
 	// Sutton 1992
-	double s2_k[10][5];
+	double s2_k[10];
 	// array storing an estimate of uncertainty in predictions
 	double s2R;
 	// Parameter setting the level of stochasticity
@@ -155,11 +155,9 @@ agent::agent()			// basic constructor
 	numFeat = 5;
 	s2R = 0.25;
 	for (int i = 0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat+1; ++j) {
-			values[i][j] = 0;
-			alphas[i][j] = 0.01, beta_k[i][j] = log(s2R),
-				h_k[i][j] = 0, s2_k[i][j] = 0;
-		}
+			values[i] = 0;
+			alphas[i] = 0.01, beta_k[i] = log(s2R),
+			h_k[i] = 0, s2_k[i] = 0;
 	}
 	alpha = 0.01, gamma = 0.5, tau = 10;								
 	// Default values
@@ -176,11 +174,9 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI,
   // parameterized constructor
 	numSti = _numSti, numFeat = _numFeat,s2R = s2RI;
 	for (int i = 0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat+1; ++j) {
-			values[i][j] = 0;
-			alphas[i][j] = 0.01, beta_k[i][j] = log(s2R),
-				h_k[i][j] = 0, s2_k[i][j] = 0;
-		}
+		values[i] = 0;
+		alphas[i] = alphaI, beta_k[i] = log(s2R),
+			h_k[i] = 0, s2_k[i] = 0;
 	}
 	alpha = alphaI, gamma = gammaI, tau = tauI;
 	neta = netaI;
@@ -200,8 +196,7 @@ void agent::rebirth(double initVal = 0){
 	currentReward = 0;
 	cumulReward = 0;
 	for (int i=0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat + 1; ++j)	 
-			values[i][j] = initVal,	alphas[i][j] = alpha;
+			values[i] = initVal,	alphas[i] = alpha;
 	}
 }
 
@@ -320,10 +315,9 @@ void agent::update(int attenMech, double maxAlpha){
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
 	delta = lambda - valuesT[choiceT];
 	if (attenMech != 4) {
+		// Fix this!!
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alphas[countStim][cleanOptionsT[choiceT].features[countStim]]
-				* delta;
+			values[countStim] += alphas[countStim] * delta;
 		}
 	}
 	else{
