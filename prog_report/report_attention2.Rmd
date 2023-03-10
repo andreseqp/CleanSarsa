@@ -39,56 +39,56 @@ plotInterv<-100
 scenario<-"Olles1"
 # see /Olle_imp/comp_stim_olle.pdf
 
-# 
-# param.base<-list(totRounds=4000,ResReward=1,VisReward=1,
-#             ResProb=c(0.5),
-#             VisProb=c(0.5),
-#             ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
-#             inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
-#             propfullPrint = 0.7,
-#             alphaT=0.01,printGen=1,seed=1, gammaRange=I(c(0)),
-#             tauRange=c(0.5),netaRange=c(0),
-#             attenMech = 1,maxAlpha=0.5,
-#             seqSp = TRUE,
-#             numSti = 4, # Number of different stimuli
-#             numFeat = 2, # Number of different features for each stimuli
-#             folderL=paste(here("Simulations","test_"),"/",sep=""))
-# 
-# param<-param.base
-# 
-# # Sp2
-# param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
-# param$visitors$set1$Sp1$betas<-c(1,0,0,0)
-# param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.5)
-# param$visitors$set1$Sp1$relAbun=1
-# #Sp1
-# param$residents$set1$Sp1$alphas<-c(0,0,0,0)
-# param$residents$set1$Sp1$betas<-c(2,1,0,0)
-# param$residents$set1$Sp1$relAbun=1
-# param$residents$set1$Sp1$reward<-c(2,0,0,0,0.5)
-# 
-# # Sp2
-# param$visitors$set2$Sp1$alphas<-c(0,0,0,0)
-# param$visitors$set2$Sp1$betas<-c(1,0,0,0)
-# param$visitors$set2$Sp1$reward<-c(1,0,0,0,0.5)
-# param$visitors$set2$Sp1$relAbun=1
-# # Sp1
-# param$residents$set2$Sp1$alphas<-c(0,0,0,0)
-# param$residents$set2$Sp1$betas<-c(2,1,0,0)
-# param$residents$set2$Sp1$relAbun=1
-# param$residents$set2$Sp1$reward<-c(2,0,0,0,0.5)
-# 
-# # Sp4
-# param$visitors$set2$Sp2$alphas<-c(0,0,0,0)
-# param$visitors$set2$Sp2$betas<-c(2,1,1,0)
-# param$visitors$set2$Sp2$reward<-c(2,0,1,0,0.5)
-# param$visitors$set2$Sp2$relAbun=1
-# # Sp3
-# param$residents$set2$Sp2$alphas<-c(0,0,0,0)
-# param$residents$set2$Sp2$betas<-c(2,0,0,1)
-# param$residents$set2$Sp2$relAbun=1
-# param$residents$set2$Sp2$reward<-c(2,0,0,-1,0.5)
-# #
+
+param.base<-list(totRounds=4000,ResReward=1,VisReward=1,
+            ResProb=c(0.5),
+            VisProb=c(0.5),
+            ResProbLeav=1,VisProbLeav=1,negativeRew=-0.5,experiment=FALSE,
+            inbr=0,outbr=0,trainingRep=30,forRat=0.0,numlearn = 1,
+            propfullPrint = 0.7,
+            alphaT=0.5,printGen=1,seed=1, gammaRange=I(c(0)),
+            tauRange=c(0.5),netaRange=c(0),
+            attenMech = 1,maxAlpha=0.5,
+            seqSp = TRUE,
+            numSti = 4, # Number of different stimuli
+            numFeat = 2, # Number of different features for each stimuli
+            folderL=paste(here("Simulations","test_"),"/",sep=""))
+
+param<-param.base
+
+# Sp2
+param$visitors$set1$Sp1$alphas<-c(0,0,0,0)
+param$visitors$set1$Sp1$betas<-c(1,0,0,0)
+param$visitors$set1$Sp1$reward<-c(1,0,0,0,0.5)
+param$visitors$set1$Sp1$relAbun=1
+#Sp1
+param$residents$set1$Sp1$alphas<-c(0,0,0,0)
+param$residents$set1$Sp1$betas<-c(2,1,0,0)
+param$residents$set1$Sp1$relAbun=1
+param$residents$set1$Sp1$reward<-c(2,0,0,0,0.5)
+
+# Sp2
+param$visitors$set2$Sp1$alphas<-c(0,0,0,0)
+param$visitors$set2$Sp1$betas<-c(1,0,0,0)
+param$visitors$set2$Sp1$reward<-c(1,0,0,0,0.5)
+param$visitors$set2$Sp1$relAbun=1
+# Sp1
+param$residents$set2$Sp1$alphas<-c(0,0,0,0)
+param$residents$set2$Sp1$betas<-c(2,1,0,0)
+param$residents$set2$Sp1$relAbun=1
+param$residents$set2$Sp1$reward<-c(2,0,0,0,0.5)
+
+# Sp4
+param$visitors$set2$Sp2$alphas<-c(0,0,0,0)
+param$visitors$set2$Sp2$betas<-c(2,1,1,0)
+param$visitors$set2$Sp2$reward<-c(2,0,1,0,0.5)
+param$visitors$set2$Sp2$relAbun=1
+# Sp3
+param$residents$set2$Sp2$alphas<-c(0,0,0,0)
+param$residents$set2$Sp2$betas<-c(2,0,0,1)
+param$residents$set2$Sp2$relAbun=1
+param$residents$set2$Sp2$reward<-c(2,0,0,-1,0.5)
+#
 
 Param<-"attenMech"
 rangParam<-c(0,1,3,4,5,6,7)
@@ -100,7 +100,7 @@ labAtt<-c("Rescola-Wagner","Mackintosh","Mackintosh2",
 # 
 # parFiles(paramJson = param,rangParam = rangParam,Param = Param)
 # 
-# Sys.setenv(scen=scenario,nodes=length(rangParam))
+Sys.setenv(scen=scenario,nodes=length(rangParam))
 
 params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
@@ -108,11 +108,11 @@ params<-fromJSON(here("Simulations",scenario,"parameters_1.json"))
 
 
 
-<!-- ```{bash} -->
-<!-- cd ../Simulations/$scen -->
+```{bash}
+cd ../Simulations/$scen
 
-<!-- find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe & -->
-<!-- ``` -->
+find . -name "*.json" | xargs -n 1 -P $nodes nohup ../.././Sarsa.exe &
+```
 
 
 ```{r,fig.cap='Frequency of features of the two different stimuli in the two different objects for the scenario with partial information for two stimulus.'}
@@ -306,6 +306,30 @@ ggplot(RMSE.data,aes(y=V1,x=Age))+
 
 ```
 
+```{r}
+
+expecValSp<-data.table(ObjSp=c(NA,"Sp1","Sp2","Sp3","Sp4"),
+                      value=c(0,2,1,1,3))
+
+rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
+             valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
+
+RMSE.data<-rawData[,sqrt(sum((valSp_1-Val.Client1)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+```
+
 ```{r, fig.cap='Dynamics of the values associated with the different features of the two stimuli dimensions for the full information scenario. In the legend the first number of the labels corresponds to the stimuli dimension index, and the second to the feature index. The black lines show the real value of the objects.' }  
 Values.long<-melt(rawData,id.vars = c("Age","Training","AttMech"),
                   measure.vars = val.vars[1:12],
@@ -348,22 +372,7 @@ ggplot(data = Alphas.long[Age%%plotInterv==0],
 
 ```
 
-# ```{r}
-# 
-# expecValSp<-data.table(ObjSp=unique(rawData[,Species1]),
-#                        value=c(0,2,1,1,3))
-# 
-# rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
-#               valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
-# 
-# rawData[,correctChoice:=fcase(valSp_1-valSp_2>0 && Choice ==1,1,
-#                               valSp_1-valSp_2>0 && Choice ==2,0,
-#                               valSp_1-valSp_2<0 && Choice ==2,1,
-#                               valSp_1-valSp_2>0 && Choice ==1,0)]
-# 
-# 
-# 
-# ```
+
 
 
 ```{r}
@@ -633,6 +642,54 @@ ggplot(RMSE.data,aes(y=V1,x=Age))+
   theme_classic()+
   theme(strip.background = element_blank(),strip.placement = "inside")
 
+
+```
+
+```{r}
+
+expecValSp<-data.table(ObjSp=c(NA,"Sp1","Sp2","Sp3","Sp4"),
+                      value=c(0,2,1,1,3))
+
+rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
+             valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
+
+RMSE.data<-rawData[,sqrt(sum((valSp_1-Val.Client1)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
+
+```
+
+```{r}
+
+expecValSp<-data.table(ObjSp=unique(rawData[,Species1]),
+                      value=c(0,1,2,3,1))
+
+rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
+             valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
+
+RMSE.data<-rawData[,sqrt(sum((valSp_1-Val.Client1)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
 
 ```
 
@@ -946,6 +1003,30 @@ ggplot(RMSE.data,aes(y=V1,x=Age))+
   theme_classic()+
   theme(strip.background = element_blank(),strip.placement = "inside")
 
+
+```
+
+```{r}
+
+expecValSp<-data.table(ObjSp=c(NA,"Sp1","Sp2","Sp3","Sp4"),
+                      value=c(0,2,1,1,3))
+
+rawData[,`:=`(valSp_1=expecValSp[match(Species1,expecValSp[,ObjSp]),value],
+             valSp_2=expecValSp[match(Species2,expecValSp[,ObjSp]),value])]
+
+RMSE.data<-rawData[,sqrt(sum((valSp_1-Val.Client1)^2)/.N),
+        by=.(AttMech,Age)]
+
+ggplot(RMSE.data,aes(y=V1,x=Age))+
+  geom_point(col="grey")+
+  xlab("Learning trial")+
+  ylab("RMSE")+
+  geom_hline(yintercept = c(0),col="black")+
+  ylim(0,2)+
+  facet_wrap(vars(AttMech),nrow = 4,
+             strip.position = "top")+
+  theme_classic()+
+  theme(strip.background = element_blank(),strip.placement = "inside")
 
 ```
 
