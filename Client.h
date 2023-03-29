@@ -74,9 +74,9 @@ client::client()
 
 client::client(client_ty type, std::vector<double> alphas,
 		 std::vector<double> betas,
-		 std::vector<double> quant = { 0,0 },
-         std::vector<double> rew, 
-		std::string _species, int _numFeat = 0 ) {
+		 std::vector<double> quant ,
+		std::vector<double> rew ,
+		std::string _species , int _numFeat = 0 ) {
 		 /*,double mMainRGB[], double sdMainRGB[], double &pSecCol,
 	double mSecRGB[], double sdSecRGB[], double &pStripes, double &pDots, double minHL[])*/
 	mytype = type;

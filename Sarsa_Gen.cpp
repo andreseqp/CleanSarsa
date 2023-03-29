@@ -67,8 +67,7 @@ class agent													// Learning agent
 {
 public:
 	agent();												// basic contructor
-	agent(double alphaI, double gammaI, double tauI, double netaI,
-		int _numSti, int _numFeat, double s2RI, double initVal);
+	agent(nlohmann::json param, double initVal);
 	// constructor providing values for the learning parameters
 	~agent();																
 	// destructor not really necessary
@@ -85,7 +84,7 @@ public:
 	void checkChoice();
 	// Check that the choice taken is among one of the options, 
 	//otherwise trigger an error
-	void rebirth(double initVal);																								
+	void rebirth(nlohmann::json param, double initVal);
 	// Function to reset private variables in an individual
 	void getNewOptions(client newOptions[], int &idNewOptions,nlohmann::json param);
 	// Function to get new clients in the station, when in a natural environment
@@ -101,7 +100,7 @@ public:
 	// default function that maps state action pairs to indexes in the array 
 	//'values' where values are stored works for DPupdate and for 
 	//state-action pair NOT for action estimation
-	void forget(double forRat);
+	// void forget(double forRat);
 	// Forgetting function: stochastic change in the estimated values
 	client cleanOptionsT[2];	// current cleaning options time = t
 	client cleanOptionsT1[2];	// future cleaning options  time = t+1
@@ -127,6 +126,7 @@ protected:
 	double s2_k[10];
 	// array storing an estimate of uncertainty in predictions
 	double s2R;
+	double range[4];
 	// Parameter setting the level of stochasticity
 	double delta; // Prediction error
 	int choiceT;// current choice 
@@ -169,17 +169,55 @@ agent::agent()			// basic constructor
 	age = 0;
 }
 
-agent::agent(double alphaI, double gammaI, double tauI, double netaI,
-	int _numSti,int _numFeat,double s2RI=0.25,double initVal = 0){
+agent::agent(nlohmann::json param,double initVal = 0){
   // parameterized constructor
-	numSti = _numSti, numFeat = _numFeat,s2R = s2RI;
-	for (int i = 0; i < numSti; ++i) {
-		values[i] = 0;
-		alphas[i] = alphaI, beta_k[i] = log(s2R),
-			h_k[i] = 0, s2_k[i] = 0;
+	numSti = param["numSti"], numFeat = param["numFeat"];
+	switch (int(param["attenMech"])){
+	case 0:
+		alpha = param["RM"]["alpha"];
+		for (int i = 0; i < numSti; ++i) {
+			alphas[i] = param["RM"]["alpha"];
+		}
+		break;
+	case 1:
+		alpha = param["MK"]["metaAlpha"];
+		break;
+	case 2:
+		break;
+	case 3:
+		alpha = param["MK2"]["metaAlpha"];
+		break;
+	case 4:
+		alpha = param["PH"]["metaAlpha"];
+		break;
+	case 5:
+		alpha = param["PM"]["metaAlpha"];
+		range[0] = param["PM"]["min_alpha"],
+			range[1] = param["PM"]["max_alpha"],
+			range[2] = param["PM"]["min_beta"],
+			range[3] = param["PM"]["max_alpha"];
+		break;
+	case 6:
+		s2R = param["K1"]["s2R"];
+		for (int i = 0; i < numSti; ++i) {
+			beta_k[i] = log(s2R), alpha = param["K1"]["metaAlpha"],
+				h_k[i] = param["K1"]["init_hk"], s2_k[i] = 0;
+			range[0] = 0, range[1] = param["K1"]["max_alpha"];
+		}
+		break;
+	case 7:
+		for (int i = 0; i < numSti; ++i) {
+			beta_k[i] = log(1/double(numSti)), alpha = param["IBDB"]["metaAlpha"],
+				h_k[i] = param["IBDB"]["init_hk"], s2_k[i] = 0;
+		}
+		default:
+			break;
 	}
-	alpha = alphaI, gamma = gammaI, tau = tauI;
-	neta = netaI;
+	for (int i = 0; i < numSti; ++i) {
+		values[i] = 0,alphas[i] = alpha;
+	}
+	gamma = param["gammaRange"][0], 
+		tau = param["tauRange"], neta = param["netaRange"];
 	delta = 0;
 	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
 	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
@@ -188,13 +226,57 @@ agent::agent(double alphaI, double gammaI, double tauI, double netaI,
 	age = 0;
 }
 
-void agent::rebirth(double initVal = 0){
+void agent::rebirth(nlohmann::json param, double initVal = 0){
 	age = 0;
 	cleanOptionsT[0] = client(), cleanOptionsT[1] = client(), choiceT = 2;
 	cleanOptionsT1[0] = client(), cleanOptionsT1[1] = client(), choiceT1 = 0;
 	valuesT1[0] = 0, valuesT1[1] = 0;
 	currentReward = 0;
 	cumulReward = 0;
+	switch (int(param["attenMech"])) {
+	case 0:
+		alpha = param["RM"]["alpha"];
+		for (int i = 0; i < numSti; ++i) {
+			alphas[i] = param["RM"]["alpha"];
+		}
+		break;
+	case 1:
+		alpha = param["MK"]["metaAlpha"];
+		break;
+	case 2:
+		break;
+	case 3:
+		alpha = param["MK2"]["metaAlpha"];
+		break;
+	case 4:
+		alpha = param["PH"]["metaAlpha"];
+		break;
+	case 5:
+		alpha = param["PM"]["metaAlpha"];
+		range[0] = param["PM"]["min_alpha"],
+			range[1] = param["PM"]["max_alpha"],
+			range[2] = param["PM"]["min_beta"],
+			range[3] = param["PM"]["max_alpha"];
+		break;
+	case 6:
+		s2R = param["K1"]["s2R"];
+		for (int i = 0; i < numSti; ++i) {
+			beta_k[i] = log(s2R), alpha = param["K1"]["metaAlpha"],
+				h_k[i] = param["K1"]["init_hk"], s2_k[i] = 0;
+			range[0] = 0, range[1] = param["K1"]["max_alpha"];
+		}
+		break;
+	case 7:
+		for (int i = 0; i < numSti; ++i) {
+			beta_k[i] = log(1 / double(numSti)), alpha = param["IBDB"]["metaAlpha"],
+				h_k[i] = param["IBDB"]["init_hk"], s2_k[i] = 0;
+		}
+	default:
+		break;
+	}
+	for (int i = 0; i < numSti; ++i) {
+		values[i] = 0, alphas[i] = alpha;
+	}
 	for (int i=0; i < numSti; ++i) {
 			values[i] = initVal,	alphas[i] = alpha;
 	}
@@ -314,20 +396,20 @@ void agent::update(int attenMech, double maxAlpha){
 	double lambda;
 	lambda = currentReward + negReward * neta + gamma * valuesT1[choiceT1];
 	delta = lambda - valuesT[choiceT];
+	updateAlpha(lambda, maxAlpha, attenMech);
 	if (attenMech != 4) {
 		// Fix this!!
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			values[countStim] += alphas[countStim] * delta;
+			if (cleanOptionsT[choiceT].features[countStim]!=0)
+				values[countStim] += alphas[countStim] * delta;
 		}
 	}
 	else{
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			values[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] 
-				*lambda;
+			if (cleanOptionsT[choiceT].features[countStim] != 0)
+			values[countStim] +=alphas[countStim]*lambda;
 		}
 	}
-	updateAlpha(lambda,maxAlpha,attenMech);
 }
 
 
@@ -343,16 +425,13 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 	case 1:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			deltaTemp = abs(lambda - valuesT[choiceT] +
-				values[countStim][cleanOptionsT[choiceT].features[countStim]]) -
+				values[countStim]*cleanOptionsT[choiceT].features[countStim]) -
 				//alphas[0] = alpha*(abs(lambda - values[1]) -
 				abs(lambda - 
-					values[countStim][cleanOptionsT[choiceT].features[countStim]]);
-			if (deltaTemp != 0) 
-				alphas[countStim]
-				[cleanOptionsT[choiceT].features[countStim]] += alpha*deltaTemp;
-			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]]
-				, 0, max);
-			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
+					values[countStim]*cleanOptionsT[choiceT].features[countStim]);
+			alphas[countStim] += alpha*deltaTemp;
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
 				wait_for_return();
 			}
 		}		 
@@ -361,16 +440,15 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 		break;
 	case 2:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] =
-				//alpha*abs(lambda -
-				abs(lambda -
-					values[countStim][cleanOptionsT[choiceT].features[countStim]]);
+			alphas[countStim] = abs(lambda - values[countStim]);
+				//alpha*abs(lambda -values[countStim])
+				
 				//+(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
-			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
-			if (alphas[countStim][cleanOptionsT[choiceT].features[countStim]] > 1) {
+			clip_range(alphas[countStim], 0, max);
+			if (alphas[countStim] > 1) {
 				wait_for_return();
 			}
-			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
+			if (isnan(alphas[countStim])) {
 				wait_for_return();
 			}
 		}
@@ -379,25 +457,20 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
     break;
     case 3:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			deltaTemp = 
-				alpha*values[countStim][cleanOptionsT[choiceT].features[countStim]];
+			deltaTemp = alpha*values[countStim];
 			if (deltaTemp != 0) 
-				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alpha*deltaTemp;
-			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
-			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
-				wait_for_return();
-			}
+				alphas[countStim] += alpha*deltaTemp;
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) wait_for_return();
 		}
     // attention (associability) increases for good predictors
     // Based on @mackintosh_Theory_1975
 	case 4:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			if (deltaTemp != 0) 
-				alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = alpha*delta +
-				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
-			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
-			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
+				alphas[countStim] = alpha*delta + (1 - alpha)*alphas[countStim];
+			clip_range(alphas[countStim], 0, max);
+			if (isnan(alphas[countStim])) {
 				wait_for_return();
 			}
 		}
@@ -406,21 +479,14 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 	  break;
 	case 5:
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			deltaTemp = 
-			abs(lambda - valuesT[choiceT] +
-				valuesT[choiceT]) -
-				//alphas[0] = alpha*(abs(lambda - values[1]) -
-				abs(lambda - values[countStim][cleanOptionsT[choiceT].features[countStim]]);
+			deltaTemp = abs(lambda - valuesT[choiceT] +	valuesT[choiceT]) -
+							abs(lambda - values[countStim]);
 			clip_range(deltaTemp, 0.05, 1);
-			beta = 
-				abs(lambda -
-				values[countStim][cleanOptionsT[choiceT].features[countStim]]) +
-				(1 - alpha)*alphas[countStim][cleanOptionsT[choiceT].features[countStim]];
-			clip_range(beta, 0.5, 1);
-			if (deltaTemp != 0) alphas[countStim][cleanOptionsT[choiceT].features[countStim]] 
-				= deltaTemp*beta;
-			clip_range(alphas[countStim][cleanOptionsT[choiceT].features[countStim]], 0, max);
-			if (isnan(alphas[countStim][cleanOptionsT[choiceT].features[countStim]])) {
+			beta = alpha*abs(lambda - values[countStim]) + (1 - alpha)*alphas[countStim];
+			clip_range(beta, range[2], range[3]);
+			if (deltaTemp != 0) alphas[countStim] = deltaTemp*beta;
+			clip_range(alphas[countStim], range[0], range[1]);
+			if (isnan(alphas[countStim])) {
 				wait_for_return();
 			}
 		}
@@ -433,27 +499,19 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 	case 6:
 		sums2x2 = 0;
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			beta_k[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alpha*delta*
-				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] * 1;
-//cleanOptionsT[choiceT].features[countStim];  // equation (13) in Sutton 1992b
-			s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] = 
-				exp(beta_k[countStim][cleanOptionsT[choiceT].features[countStim]]);     // equation (11) in Sutton 1992b
-			sums2x2 += s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
-				1;
-//* cleanOptionsT[choiceT].features[countStim]*
-//cleanOptionsT[choiceT].features[countStim];
+			beta_k[countStim] +=alpha*delta*
+				h_k[countStim] * cleanOptionsT[choiceT].features[countStim];
+ // equation (13) in Sutton 1992b
+			s2_k[countStim] = exp(beta_k[countStim]);     // equation (11) in Sutton 1992b
+			sums2x2 += s2_k[countStim] *
+				pow(cleanOptionsT[choiceT].features[countStim],2);
 		}
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] = 
-				s2_k[countStim][cleanOptionsT[choiceT].features[countStim]] *1
-//cleanOptionsT[choiceT].features[countStim] 
+			alphas[countStim] =	s2_k[countStim] * cleanOptionsT[choiceT].features[countStim]
 				/ (sums2x2 + s2R);// equation (10) in Sutton 1992b
-			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
-				(h_k[countStim][cleanOptionsT[choiceT].features[countStim]] +
-					alphas[countStim][cleanOptionsT[choiceT].features[countStim]] *
-					delta)*
-				ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1);
+			h_k[countStim] =(h_k[countStim] + alphas[countStim] *	delta)*
+				ReLU(1 - alphas[countStim] * cleanOptionsT[choiceT].features[countStim]);
+			clip_high(alphas[countStim], range[1]);
 //cleanOptionsT[choiceT].features[countStim]); // equation (15)
 		}
 		
@@ -466,31 +524,26 @@ void agent::updateAlpha(double lambda, double max=1, int attenMech = 0) {
 		// // is part of the learning rate); note that starting value of bet needs to
 		// // be right to prevent divergence of the algorithm (bet0 = log(1/stimd)
 		// // according to Sutton 1992b)
-		sums2x2 = 0;
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			beta_k[countStim][cleanOptionsT[choiceT].features[countStim]] +=
-				alpha*delta*
-				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] * 1;
+			beta_k[countStim] += alpha*delta*
+				h_k[countStim]*cleanOptionsT[choiceT].features[countStim];
 // Fix this
 //cleanOptionsT[choiceT].features[countStim];  
 			// equation (13) in Sutton 1992b
-			alphas[countStim][cleanOptionsT[choiceT].features[countStim]] =
-				exp(beta_k[countStim][cleanOptionsT[choiceT].features[countStim]]) * 1;
+			alphas[countStim] =
+				exp(beta_k[countStim]) *cleanOptionsT[choiceT].features[countStim];
+			//clip_high(alphas[countStim], max);
 // Fix this
 //cleanOptionsT[choiceT].features[countStim];  
 			// eq. (17) in Sutton 1992b, cf (4) in Sutton 1992a
-			if (alphas[countStim][cleanOptionsT[choiceT].features[countStim]] == INFINITY)
+			if (alphas[countStim] == INFINITY)
 				cout << "Infinity value" << endl;
 		}
 		for (int countStim = 0; countStim < numSti; ++countStim) {
 			// from eq. (20) in Sutton 1992b, cf (5) or fig 2 in Sutton 1992a
-			h_k[countStim][cleanOptionsT[choiceT].features[countStim]] =
-				h_k[countStim][cleanOptionsT[choiceT].features[countStim]] *
-ReLU(1 - alphas[countStim][cleanOptionsT[choiceT].features[countStim]] * 1) +
-// Fix this
-//cleanOptionsT[choiceT].features[countStim]) +
-alphas[countStim][cleanOptionsT[choiceT].features[countStim]] *
-delta;
+			h_k[countStim] = h_k[countStim] *
+	ReLU(1 - alphas[countStim]*cleanOptionsT[choiceT].features[countStim]) +
+	alphas[countStim] *delta;
 		}
 		// Based on @dayan_Learning_2000 and @sutton_Gain_1992
 		break;
@@ -499,15 +552,6 @@ delta;
   }
 }
 
-
-void agent::forget(double forRat) {
-	for (int i = 0; i < numSti; ++i) {
-		for (int j = 0; j < numFeat; ++j) {
-			if (j != cleanOptionsT[choiceT].features[i])
-				values[i][j] -= forRat;
-		}
-	}
-}
 
 void agent::printIndData(ofstream &learnSeries, int seed, json &param) {
 	learnSeries << seed << '\t' << age << '\t';
@@ -519,8 +563,7 @@ void agent::printIndData(ofstream &learnSeries, int seed, json &param) {
 	learnSeries << choiceT +1 << '\t';
 	learnSeries << currentReward << '\t' << cumulReward << '\t' << negReward << '\t';
 	for (int j = 0; j < numSti; j++) {
-		for (int k = 0; k < numFeat + 1; ++k)
-			learnSeries << values[j][k] << '\t' << alphas[j][k] << '\t';
+		learnSeries << values[j] << '\t' << alphas[j] << '\t';
 	}
 	learnSeries << endl;
 }
@@ -535,10 +578,9 @@ double agent::softMax(double &value1, double &value2) {
 
 class PIATyp1 :public agent {				// Partially Informed Agent (PIA)	
 public:
-	PIATyp1(double alphaI, double gammaI, double tauI, double netaI,
-		int _numSti, int _numFeat, double initVal = 0)
-		:agent(alphaI, gammaI, tauI, netaI, _numSti, _numFeat) {
-		numSti = _numSti;
+	PIATyp1(nlohmann::json param, double initVal = 0)
+		:agent(param) {
+		numSti = param["numSti"];
 	}
 	virtual void rebirth_a(double initVal = 0) {
 		rebirth(initVal);
@@ -546,27 +588,14 @@ public:
 	virtual void value() {
 		valuesT1[0] = 0, valuesT1[1] = 0;
 		for (int countStim = 0; countStim < numSti; ++countStim) {
-			valuesT1[0] += values[countStim][cleanOptionsT1[0].features[countStim]];
-			valuesT1[1] += values[countStim][cleanOptionsT1[1].features[countStim]];
+			valuesT1[0] += values[countStim]*cleanOptionsT1[0].features[countStim];
+			valuesT1[1] += values[countStim]*cleanOptionsT1[1].features[countStim];
 		}
 
 	}
 	virtual void choice() {
 		choiceT1 = rnd::bernoulli(softMax(valuesT1[1], valuesT1[0]));
-		/*if (rnd::uniform() < softMax(valuesT1[0], valuesT1[1])){
-				choiceT1 = 0;
-			}
-			else { choiceT1 = 1; }
-		}*/
 	}
-	/*virtual void choice(int &StaAct1, int &StaAct2)
-	{
-		if (rnd::uniform() < softMax(values[StaAct1], values[StaAct2]))
-		{
-			choiceT1 = 0;
-		}
-		else { choiceT1 = 1; }
-	}*/
 };
 
 // Functions external to the agent
@@ -630,6 +659,7 @@ void draw(client trainingSet[], json param) {
 			trainingSet[i] = client(resident,
 				param["residents"][chosenSet][chosenSp]["alphas"],
 				param["residents"][chosenSet][chosenSp]["betas"],
+				param["residents"][chosenSet][chosenSp]["quant"],
 				param["residents"][chosenSet][chosenSp]["reward"], chosenSp,
 				int(param["numFeat"]));
 		}
@@ -647,6 +677,7 @@ void draw(client trainingSet[], json param) {
 			trainingSet[i] = client(visitor, 
 				param["visitors"][chosenSet][chosenSp]["alphas"],
 				param["visitors"][chosenSet][chosenSp]["betas"],
+				param["residents"][chosenSet][chosenSp]["quant"],
 				param["visitors"][chosenSet][chosenSp]["reward"], chosenSp,
 				int(param["numFeat"]));
 		}
@@ -719,9 +750,7 @@ void initializeIndFile(ofstream &indOutput, agent &learner,
 		indOutput << "Choice" << '\t' << "Current.Reward" << '\t';
 		indOutput << "Cum.Reward" << '\t' << "Neg.Reward" << '\t';
 		for (int i=0; i< int(param["numSti"]);++i){
-			for (int j = 0; j < int(param["numFeat"]) + 1; ++j)
-				indOutput << "Val." + itos(i) + itos(j) << "\t"
-				<< "alpha." + itos(i) + itos(j) << "\t";
+			indOutput << "Val." + itos(i)  << "\t"	<< "alpha." + itos(i)  << "\t";
 		}
 		indOutput << endl;
 	}
@@ -769,28 +798,33 @@ int main(int argc, char* argv[])
 
 	//param["visitors"]["set2"]["Sp1"]["alphas"] = { 1 };
 	//param["visitors"]["set2"]["Sp1"]["betas"] = { 0.01 };
+	//param["visitors"]["set2"]["Sp1"]["quant"] = { 0.1 };
 	//param["visitors"]["set2"]["Sp1"]["relAbun"] = 1;
 	//param["visitors"]["set2"]["Sp1"]["reward"] = { 1, 0 ,0};
 	//param["visitors"]["set1"]["Sp1"]["alphas"] = { 1, 0.01 };
 	//param["visitors"]["set1"]["Sp1"]["betas"] = { 0.01, 1 };
+	//param["visitors"]["set1"]["Sp1"]["quant"] = { 0.1, 0 };
 	//param["visitors"]["set1"]["Sp1"]["relAbun"] = 1;
 	//param["visitors"]["set1"]["Sp1"]["reward"] = { 1, 0 ,0};
 	//param["residents"]["set2"]["Sp1"]["alphas"] = { 0.5 , 1 };
 	//param["residents"]["set2"]["Sp1"]["betas"] = { 1,1};
+	//param["residents"]["set2"]["Sp1"]["quant"] = { 0.1, 0};
 	//param["residents"]["set2"]["Sp1"]["relAbun"] = 1;
 	//param["residents"]["set2"]["Sp1"]["reward"] = { 2, 0 ,0};
 	//param["residents"]["set1"]["Sp1"]["alphas"] = { 0.5 , 1 };
 	//param["residents"]["set1"]["Sp1"]["betas"] = { 1,1 };
+	//param["residents"]["set1"]["Sp1"]["quant"] = { 0.1,0 };
 	//param["residents"]["set1"]["Sp1"]["relAbun"] = 1;
 	//param["residents"]["set1"]["Sp1"]["reward"] = { 2, 0,0 };
 	//
-	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_1.json");
+	//ifstream input("M:/Projects/CleanSarsa/Simulations/test_/parameters_6.json");
 
 	// Read parameters
 	ifstream input(argv[1]);
 	if (input.fail()) { cout << "JSON file failed" << endl; }
+
 	json param = nlohmann::json::parse(input);
-	//
+	
 	//// Pass on parameters from JSON to c++
 	//int const totRounds = param["totRounds"];
 	//double ResReward = param["ResReward"];
@@ -835,9 +869,7 @@ int main(int argc, char* argv[])
 						for (json::iterator itt = param["tauRange"].begin();
 							itt != param["tauRange"].end(); ++itt) {
 							//learners[0] = new FIATyp1(alphaT, *itg, *itt, *itn);
-							learners[0] = new PIATyp1(
-								param["alphaT"], *itg, *itt, *itn,
-								param["numSti"], param["numFeat"]);
+							learners[0] = new PIATyp1(param);
 							ofstream printTest;
 							//ofstream DPprint;
 
@@ -852,7 +884,6 @@ int main(int argc, char* argv[])
 										learners[k]->act(clientSet,idClientSet, param);
 										learners[k]->update(param["attenMech"],
 											param["maxAlpha"]);
-										learners[k]->forget(double(param["forRat"]));
 										if (j > int(param["totRounds"])*double(param["propfullPrint"])){
 											learners[k]->printIndData(
 												printTest,i,param);
@@ -862,7 +893,7 @@ int main(int argc, char* argv[])
 												printTest,i, param);
 										}
 									}
-									learners[k]->rebirth();
+									learners[k]->rebirth(param);
 								}
 								printTest.close();
 								// if (k == 0) {
